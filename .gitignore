@@ -3,3 +3,4 @@ web/dist/
 .netlify/
 .env
 .env.*
+client_secret_*.json
