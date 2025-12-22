@@ -289,14 +289,21 @@ export default function App() {
     }
 
     if ('permissions' in navigator) {
-      navigator.permissions.query({ name: 'geolocation' }).then((result) => {
-        setGeolocationPermission(result.state as 'granted' | 'denied' | 'prompt');
-        result.addEventListener('change', () => {
-          setGeolocationPermission(result.state as 'granted' | 'denied' | 'prompt');
+      navigator.permissions
+        .query({ name: 'geolocation' })
+        .then((result) => {
+          setGeolocationPermission(
+            result.state as 'granted' | 'denied' | 'prompt'
+          );
+          result.addEventListener('change', () => {
+            setGeolocationPermission(
+              result.state as 'granted' | 'denied' | 'prompt'
+            );
+          });
+        })
+        .catch(() => {
+          setGeolocationPermission('prompt');
         });
-      }).catch(() => {
-        setGeolocationPermission('prompt');
-      });
     }
   }, []);
 
@@ -1315,7 +1322,7 @@ export default function App() {
             <button
               className="ghost"
               onClick={requestNotifications}
-              disabled={notificationPermission === 'granted'}
+              disabled={notificationPermission === 'granted' || notificationPermission === 'unsupported'}
             >
               Enable alerts
             </button>
