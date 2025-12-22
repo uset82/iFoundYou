@@ -1,0 +1,52 @@
+{
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_nearby_friends",
+        "description": "Return nearby friends within a radius in meters.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "radius_m": {
+              "type": "number",
+              "description": "Search radius in meters."
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "get_discoverable_people",
+        "description": "Return discoverable people within a radius in meters.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "radius_m": {
+              "type": "number",
+              "description": "Search radius in meters."
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "trigger_proximity_alerts",
+        "description": "Create proximity alerts for nearby friends.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "radius_m": {
+              "type": "number",
+              "description": "Search radius in meters."
+            }
+          }
+        }
+      }
+    }
+  ]
+}

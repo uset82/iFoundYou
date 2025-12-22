@@ -1,0 +1,11 @@
+[build]
+command = "npm --prefix web install && npm --prefix web run build"
+publish = "web/dist"
+
+[functions]
+directory = "netlify/functions"
+
+[[redirects]]
+from = "/*"
+to = "/index.html"
+status = 200
