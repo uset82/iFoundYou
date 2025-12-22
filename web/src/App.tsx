@@ -47,18 +47,6 @@ type CommunityAlert = {
   distance_m?: number;
 };
 
-type ContactMatch = {
-  id: string;
-  display_name: string | null;
-  match_type: string | null;
-};
-
-type DeviceContact = {
-  name?: string[];
-  email?: string[];
-  tel?: string[];
-};
-
 const DEFAULT_CENTER = {
   lat: 37.7749,
   lon: -122.4194,
@@ -136,32 +124,6 @@ const normalizeEmail = (value: string) => value.trim().toLowerCase();
 
 const normalizePhone = (value: string) => value.replace(/[^\d]/g, '');
 
-const extractContactsFromText = (input: string) => {
-  const emails = new Set<string>();
-  const phones = new Set<string>();
-
-  const emailMatches =
-    input.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) ?? [];
-  emailMatches.forEach((match) => {
-    const email = normalizeEmail(match);
-    if (email) {
-      emails.add(email);
-    }
-  });
-
-  const phoneMatches = input.match(/(\+?\d[\d\s().-]{6,}\d)/g) ?? [];
-  phoneMatches.forEach((match) => {
-    const phone = normalizePhone(match);
-    if (phone.length >= 7) {
-      phones.add(phone);
-    }
-  });
-
-  return { emails: Array.from(emails), phones: Array.from(phones) };
-};
-
-const mergeUnique = (values: string[]) => Array.from(new Set(values));
-
 export default function App() {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -188,26 +150,7 @@ export default function App() {
   const [friends, setFriends] = useState<FriendSummary[]>([]);
   const [pendingIncoming, setPendingIncoming] = useState<FriendRequest[]>([]);
   const [pendingOutgoing, setPendingOutgoing] = useState<FriendRequest[]>([]);
-  const [friendIdInput, setFriendIdInput] = useState('');
   const [friendBusy, setFriendBusy] = useState(false);
-  const [friendError, setFriendError] = useState<string | null>(null);
-  const [contactInput, setContactInput] = useState('');
-  const [contactMatches, setContactMatches] = useState<ContactMatch[]>([]);
-  const [contactBusy, setContactBusy] = useState(false);
-  const [contactError, setContactError] = useState<string | null>(null);
-  const [contactLookupSummary, setContactLookupSummary] = useState<string | null>(
-    null
-  );
-  const [importedContactEmails, setImportedContactEmails] = useState<string[]>(
-    []
-  );
-  const [importedContactPhones, setImportedContactPhones] = useState<string[]>(
-    []
-  );
-  const [importedContactCount, setImportedContactCount] = useState<number | null>(
-    null
-  );
-  const [contactImportBusy, setContactImportBusy] = useState(false);
   const [contactEmailEnabled, setContactEmailEnabled] = useState(false);
   const [contactPhoneInput, setContactPhoneInput] = useState('');
   const [contactSettingsBusy, setContactSettingsBusy] = useState(false);
@@ -241,21 +184,6 @@ export default function App() {
   const [alertDurationMinutes, setAlertDurationMinutes] = useState(240);
 
   const isAuthed = useMemo(() => Boolean(session?.user), [session]);
-  const supportsContactPicker = useMemo(() => {
-    if (typeof navigator === 'undefined') {
-      return false;
-    }
-    const manager = (navigator as unknown as { contacts?: { select?: () => void } })
-      .contacts;
-    return Boolean(manager && typeof manager.select === 'function');
-  }, []);
-  const friendStatusById = useMemo(() => {
-    const statusMap = new Map<string, 'accepted' | 'incoming' | 'outgoing'>();
-    friends.forEach((friend) => statusMap.set(friend.id, 'accepted'));
-    pendingIncoming.forEach((req) => statusMap.set(req.user_id, 'incoming'));
-    pendingOutgoing.forEach((req) => statusMap.set(req.friend_id, 'outgoing'));
-    return statusMap;
-  }, [friends, pendingIncoming, pendingOutgoing]);
 
   useEffect(() => {
     if (!hasSupabaseConfig) {
@@ -547,13 +475,6 @@ export default function App() {
       setContactEmailEnabled(false);
       setContactPhoneInput('');
       setContactSettingsError(null);
-      setContactMatches([]);
-      setContactInput('');
-      setImportedContactEmails([]);
-      setImportedContactPhones([]);
-      setImportedContactCount(null);
-      setContactLookupSummary(null);
-      setContactError(null);
       return;
     }
     if (!hasSupabaseConfig) {
@@ -763,6 +684,92 @@ export default function App() {
     setNotificationPermission(permission);
   };
 
+  const shareApp = async (
+    platform?: 'facebook' | 'instagram' | 'google' | 'apple'
+  ) => {
+    const shareUrl = 'https://imaginative-rolypoly-7fda4b.netlify.app/';
+    const shareText = 'Join me on iFoundYou - stay connected with friends in real-time!';
+    const shareTitle = 'iFoundYou';
+
+    if (platform === 'facebook') {
+      window.open(
+        `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`,
+        '_blank',
+        'width=600,height=400'
+      );
+      return;
+    }
+
+    if (platform === 'google') {
+      const subject = encodeURIComponent(shareTitle);
+      const body = encodeURIComponent(`${shareText}\n${shareUrl}`);
+      window.open(
+        `https://mail.google.com/mail/?view=cm&fs=1&su=${subject}&body=${body}`,
+        '_blank',
+        'width=600,height=600'
+      );
+      return;
+    }
+
+    if (platform === 'instagram') {
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        alert('Link copied! Open Instagram and paste it in your story or message.');
+      } catch (err) {
+        alert(`Copy this link to share: ${shareUrl}`);
+      }
+      return;
+    }
+
+    if (platform === 'apple') {
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: shareTitle,
+            text: shareText,
+            url: shareUrl,
+          });
+        } catch (err) {
+          if ((err as Error).name !== 'AbortError') {
+            console.error('Share failed:', err);
+          }
+        }
+      } else {
+        try {
+          await navigator.clipboard.writeText(`${shareText} ${shareUrl}`);
+          alert('Link copied to clipboard!');
+        } catch (err) {
+          alert(`Share this link: ${shareUrl}`);
+        }
+      }
+      return;
+    }
+
+    // Try Web Share API first (works great on iPhone)
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: shareText,
+          url: shareUrl,
+        });
+      } catch (err) {
+        // User cancelled or error occurred
+        if ((err as Error).name !== 'AbortError') {
+          console.error('Share failed:', err);
+        }
+      }
+    } else {
+      // Fallback: copy to clipboard
+      try {
+        await navigator.clipboard.writeText(`${shareText} ${shareUrl}`);
+        alert('Link copied to clipboard!');
+      } catch (err) {
+        alert(`Share this link: ${shareUrl}`);
+      }
+    }
+  };
+
   const toggleDiscoverable = async () => {
     if (!session?.user) {
       return;
@@ -888,150 +895,6 @@ export default function App() {
       setContactPhoneInput(trimmed ? normalized : '');
     }
     setContactSettingsBusy(false);
-  };
-
-  const importDeviceContacts = async () => {
-    if (!supportsContactPicker) {
-      setContactError('Contact picker is not supported in this browser.');
-      return;
-    }
-    const picker = (
-      navigator as unknown as {
-        contacts?: {
-          select: (
-            properties: string[],
-            options: { multiple: boolean }
-          ) => Promise<DeviceContact[]>;
-        };
-      }
-    ).contacts;
-    if (!picker) {
-      setContactError('Contact picker is unavailable.');
-      return;
-    }
-    setContactImportBusy(true);
-    setContactError(null);
-    try {
-      const contacts = await picker.select(['name', 'email', 'tel'], {
-        multiple: true,
-      });
-      const nextEmails = new Set(importedContactEmails);
-      const nextPhones = new Set(importedContactPhones);
-      contacts.forEach((contact) => {
-        contact.email?.forEach((value) => {
-          const email = normalizeEmail(value);
-          if (email) {
-            nextEmails.add(email);
-          }
-        });
-        contact.tel?.forEach((value) => {
-          const phone = normalizePhone(value);
-          if (phone.length >= 7) {
-            nextPhones.add(phone);
-          }
-        });
-      });
-      setImportedContactEmails(Array.from(nextEmails));
-      setImportedContactPhones(Array.from(nextPhones));
-      setImportedContactCount(contacts.length);
-      if (contacts.length === 0) {
-        setContactError('No contacts selected.');
-      }
-    } catch {
-      setContactError('Contact access was canceled or blocked.');
-    }
-    setContactImportBusy(false);
-  };
-
-  const findContactMatches = async () => {
-    if (!hasSupabaseConfig) {
-      setContactError('Missing Supabase config.');
-      return;
-    }
-    if (!session?.user) {
-      setContactError('Sign in first to search contacts.');
-      return;
-    }
-    const manual = extractContactsFromText(contactInput);
-    const emails = mergeUnique([...manual.emails, ...importedContactEmails]);
-    const phones = mergeUnique([...manual.phones, ...importedContactPhones]);
-    if (emails.length === 0 && phones.length === 0) {
-      setContactError('Add at least one email or phone number.');
-      return;
-    }
-    setContactBusy(true);
-    setContactError(null);
-    const { data, error: matchError } = await supabase.rpc('match_contacts', {
-      emails,
-      phones,
-    });
-    if (matchError) {
-      setContactError(matchError.message);
-      setContactMatches([]);
-    } else {
-      setContactMatches((data as ContactMatch[]) ?? []);
-    }
-    setContactLookupSummary(
-      `Checked ${emails.length} emails and ${phones.length} phones.`
-    );
-    setContactBusy(false);
-  };
-
-  const createFriendRequest = async (friendId: string) => {
-    if (!session?.user) {
-      setFriendError('Sign in first to add friends.');
-      return false;
-    }
-    if (!hasSupabaseConfig) {
-      setFriendError('Missing Supabase config.');
-      return false;
-    }
-    const trimmed = friendId.trim();
-    if (!trimmed) {
-      setFriendError('Enter a friend user id.');
-      return false;
-    }
-    if (trimmed === session.user.id) {
-      setFriendError('You cannot add yourself.');
-      return false;
-    }
-    const currentStatus = friendStatusById.get(trimmed);
-    if (currentStatus === 'accepted') {
-      setFriendError('You are already friends.');
-      return false;
-    }
-    if (currentStatus === 'outgoing') {
-      setFriendError('Friend request already sent.');
-      return false;
-    }
-    if (currentStatus === 'incoming') {
-      setFriendError('They already requested you.');
-      return false;
-    }
-
-    setFriendBusy(true);
-    setFriendError(null);
-    const { error: requestError } = await supabase.from('friendships').insert({
-      user_id: session.user.id,
-      friend_id: trimmed,
-      status: 'pending',
-    });
-
-    if (requestError) {
-      setFriendError(requestError.message);
-      setFriendBusy(false);
-      return false;
-    }
-    await refreshFriends();
-    setFriendBusy(false);
-    return true;
-  };
-
-  const sendFriendRequest = async () => {
-    const success = await createFriendRequest(friendIdInput);
-    if (success) {
-      setFriendIdInput('');
-    }
   };
 
   const respondToRequest = async (requestId: string, status: string) => {
@@ -1393,131 +1256,40 @@ export default function App() {
             </div>
 
             {isAuthed && (
-              <div className="card request-card">
-                <label>
-                  Add friend by id
-                  <input
-                    value={friendIdInput}
-                    onChange={(event) => setFriendIdInput(event.target.value)}
-                    placeholder="friend uuid"
-                  />
-                </label>
-                <button
-                  className="primary"
-                  onClick={sendFriendRequest}
-                  disabled={friendBusy}
-                >
-                  Send request
-                </button>
-                {friendError && <p className="error">{friendError}</p>}
-              </div>
-            )}
-
-            {isAuthed && (
-              <div className="card contact-card">
-                <h3>Find friends from contacts</h3>
-                <p className="muted">
-                  Import from your phone or paste emails and phone numbers.
-                </p>
-                <div className="contact-actions">
+              <div className="card invite-card">
+                <div className="share-buttons">
+                  <div className="share-copy">
+                    <h3>Invite friends</h3>
+                    <p className="muted">
+                      Share iFoundYou with contacts on Apple, Google, Facebook, or
+                      Instagram.
+                    </p>
+                  </div>
+                  <button
+                    className="primary"
+                    onClick={() => shareApp('apple')}
+                  >
+                    Share with Apple
+                  </button>
+                  <button
+                    className="primary"
+                    onClick={() => shareApp('google')}
+                  >
+                    Share with Google
+                  </button>
                   <button
                     className="ghost"
-                    onClick={importDeviceContacts}
-                    disabled={!supportsContactPicker || contactImportBusy}
+                    onClick={() => shareApp('facebook')}
                   >
-                    {contactImportBusy ? 'Importing...' : 'Import phone contacts'}
+                    Share on Facebook
+                  </button>
+                  <button
+                    className="ghost"
+                    onClick={() => shareApp('instagram')}
+                  >
+                    Share on Instagram
                   </button>
                 </div>
-                {!supportsContactPicker && (
-                  <p className="muted">Contact picker not supported.</p>
-                )}
-                {importedContactCount !== null && (
-                  <p className="muted">
-                    Imported {importedContactCount} contacts -{' '}
-                    {importedContactEmails.length} emails -{' '}
-                    {importedContactPhones.length} phones
-                  </p>
-                )}
-                <label className="field">
-                  Paste email/phone contacts
-                  <textarea
-                    value={contactInput}
-                    onChange={(event) => setContactInput(event.target.value)}
-                    rows={3}
-                    placeholder={'alex@example.com\n+1 415 555 0199'}
-                  />
-                </label>
-                <button
-                  className="primary"
-                  onClick={findContactMatches}
-                  disabled={contactBusy}
-                >
-                  {contactBusy ? 'Searching...' : 'Find matches'}
-                </button>
-                {contactLookupSummary && (
-                  <p className="muted">{contactLookupSummary}</p>
-                )}
-                {contactError && <p className="error">{contactError}</p>}
-              </div>
-            )}
-
-            {isAuthed && contactLookupSummary && (
-              <div className="card contact-results">
-                <h3>Matches</h3>
-                {contactMatches.length === 0 ? (
-                  <p className="muted">
-                    No matches yet. Ask friends to enable contact invites.
-                  </p>
-                ) : (
-                  contactMatches.map((match) => {
-                    const status = friendStatusById.get(match.id);
-                    const statusLabel =
-                      status === 'accepted'
-                        ? 'Already friends'
-                        : status === 'outgoing'
-                          ? 'Request sent'
-                          : status === 'incoming'
-                            ? 'Incoming request'
-                            : null;
-                    const isDisabled =
-                      friendBusy ||
-                      status === 'accepted' ||
-                      status === 'outgoing' ||
-                      status === 'incoming';
-                    const matchLabel =
-                      match.match_type === 'phone'
-                        ? 'Matched by phone'
-                        : match.match_type === 'email'
-                          ? 'Matched by email'
-                          : 'Matched contact';
-                    return (
-                      <div key={match.id} className="request-row contact-row">
-                        <div className="contact-meta">
-                          <strong>{match.display_name ?? 'Friend'}</strong>
-                          <span className="muted">
-                            {matchLabel}
-                            {statusLabel ? ` - ${statusLabel}` : ''}
-                          </span>
-                        </div>
-                        <div className="request-actions">
-                          <button
-                            className="primary"
-                            onClick={() => createFriendRequest(match.id)}
-                            disabled={isDisabled}
-                          >
-                            {status === 'accepted'
-                              ? 'Friends'
-                              : status === 'outgoing'
-                                ? 'Sent'
-                                : status === 'incoming'
-                                  ? 'Incoming'
-                                  : 'Send request'}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
               </div>
             )}
 
@@ -1565,7 +1337,7 @@ export default function App() {
                 <div className="friend-card empty">
                   <div>
                     <strong>No friends yet</strong>
-                    <span>Add friends once requests are wired.</span>
+                    <span>Share the app to start connecting.</span>
                   </div>
                 </div>
               )}

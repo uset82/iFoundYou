@@ -753,3 +753,44 @@ button:focus-visible {
     width: 100%;
   }
 }
+
+/* Invite card styles */
+.invite-card {
+  background: linear-gradient(135deg, rgba(245, 200, 75, 0.12), rgba(58, 198, 255, 0.08));
+  border-color: rgba(245, 200, 75, 0.3);
+}
+
+.invite-card h3 {
+  margin: 0 0 8px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.1rem;
+}
+
+.share-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.share-copy {
+  flex: 1 1 100%;
+}
+
+.share-copy p {
+  margin: 0;
+}
+
+.share-buttons button {
+  flex: 1;
+  min-width: 120px;
+}
+
+@media (max-width: 700px) {
+  .share-buttons {
+    flex-direction: column;
+  }
+  
+  .share-buttons button {
+    width: 100%;
+  }
+}
