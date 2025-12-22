@@ -1,15 +1,24 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Device } from 'react-native-ble-plx';
 import { ScreenLayout } from '../components/ScreenLayout';
 import { InfoCard } from '../components/InfoCard';
 import { startBleScan, stopBleScan } from '../lib/ble';
+import {
+  onMultipeerMessage,
+  onMultipeerPeers,
+  startMultipeer,
+  stopMultipeer,
+} from '../lib/multipeer';
 import { colors, spacing } from '../theme';
 
 export const MeshScreen = () => {
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [devices, setDevices] = useState<Record<string, Device>>({});
+  const [p2pActive, setP2pActive] = useState(false);
+  const [p2pPeers, setP2pPeers] = useState<string[]>([]);
+  const [lastP2pMessage, setLastP2pMessage] = useState<string | null>(null);
 
   const handleDevice = useCallback((device: Device) => {
     setDevices(prev => {
@@ -44,9 +53,40 @@ export const MeshScreen = () => {
     setScanning(false);
   }, []);
 
+  const startP2P = useCallback(async () => {
+    setError(null);
+    const started = await startMultipeer();
+    setP2pActive(Boolean(started));
+  }, []);
+
+  const stopP2P = useCallback(async () => {
+    await stopMultipeer();
+    setP2pActive(false);
+    setP2pPeers([]);
+  }, []);
+
   useEffect(() => {
     return () => {
       stopBleScan();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'ios') {
+      return undefined;
+    }
+
+    const peerSub = onMultipeerPeers(payload => {
+      setP2pPeers(payload.peers ?? []);
+    });
+
+    const messageSub = onMultipeerMessage(payload => {
+      setLastP2pMessage(`${payload.from}: ${payload.message}`);
+    });
+
+    return () => {
+      peerSub.remove();
+      messageSub.remove();
     };
   }, []);
 
@@ -89,6 +129,29 @@ export const MeshScreen = () => {
           ))
         )}
       </View>
+      {Platform.OS === 'ios' ? (
+        <View style={styles.controls}>
+          <Pressable
+            style={[styles.button, p2pActive && styles.buttonActive]}
+            onPress={p2pActive ? stopP2P : startP2P}
+          >
+            <Text style={styles.buttonText}>
+              {p2pActive ? 'Stop P2P' : 'Start P2P'}
+            </Text>
+          </Pressable>
+          <Text style={styles.status}>
+            {p2pActive
+              ? `Connected peers: ${p2pPeers.length}`
+              : 'P2P is idle.'}
+          </Text>
+          {p2pPeers.length > 0 ? (
+            <Text style={styles.muted}>{p2pPeers.join(', ')}</Text>
+          ) : null}
+          {lastP2pMessage ? (
+            <Text style={styles.muted}>Last: {lastP2pMessage}</Text>
+          ) : null}
+        </View>
+      ) : null}
       <InfoCard
         title="Routing"
         description="Store-and-forward with TTL, deduplication, and bounded retries."

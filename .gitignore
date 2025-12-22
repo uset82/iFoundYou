@@ -13,3 +13,4 @@ mobile/.env
 .env.*
 client_secret_*.json
 !mobile/.env.example
+mcp-server/
