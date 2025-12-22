@@ -10,6 +10,13 @@ import {
   startMultipeer,
   stopMultipeer,
 } from '../lib/multipeer';
+import {
+  onWifiDirectDiscovery,
+  onWifiDirectPeers,
+  onWifiDirectState,
+  startWifiDirect,
+  stopWifiDirect,
+} from '../lib/wifidirect';
 import { colors, spacing } from '../theme';
 
 export const MeshScreen = () => {
@@ -19,6 +26,12 @@ export const MeshScreen = () => {
   const [p2pActive, setP2pActive] = useState(false);
   const [p2pPeers, setP2pPeers] = useState<string[]>([]);
   const [lastP2pMessage, setLastP2pMessage] = useState<string | null>(null);
+  const [wifiActive, setWifiActive] = useState(false);
+  const [wifiDiscovering, setWifiDiscovering] = useState(false);
+  const [wifiPeers, setWifiPeers] = useState<
+    { name: string; address: string }[]
+  >([]);
+  const [wifiError, setWifiError] = useState<string | null>(null);
 
   const handleDevice = useCallback((device: Device) => {
     setDevices(prev => {
@@ -65,6 +78,22 @@ export const MeshScreen = () => {
     setP2pPeers([]);
   }, []);
 
+  const startWifi = useCallback(async () => {
+    setWifiError(null);
+    const started = await startWifiDirect();
+    setWifiActive(Boolean(started));
+    if (!started) {
+      setWifiError('Wi-Fi Direct permission denied or unavailable.');
+    }
+  }, []);
+
+  const stopWifi = useCallback(async () => {
+    await stopWifiDirect();
+    setWifiActive(false);
+    setWifiDiscovering(false);
+    setWifiPeers([]);
+  }, []);
+
   useEffect(() => {
     return () => {
       stopBleScan();
@@ -87,6 +116,30 @@ export const MeshScreen = () => {
     return () => {
       peerSub.remove();
       messageSub.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return undefined;
+    }
+
+    const peersSub = onWifiDirectPeers(payload => {
+      setWifiPeers(payload ?? []);
+    });
+
+    const stateSub = onWifiDirectState(payload => {
+      setWifiActive(payload.enabled);
+    });
+
+    const discoverySub = onWifiDirectDiscovery(payload => {
+      setWifiDiscovering(payload.discovering);
+    });
+
+    return () => {
+      peersSub.remove();
+      stateSub.remove();
+      discoverySub.remove();
     };
   }, []);
 
@@ -150,6 +203,31 @@ export const MeshScreen = () => {
           {lastP2pMessage ? (
             <Text style={styles.muted}>Last: {lastP2pMessage}</Text>
           ) : null}
+        </View>
+      ) : null}
+      {Platform.OS === 'android' ? (
+        <View style={styles.controls}>
+          <Pressable
+            style={[styles.button, wifiActive && styles.buttonActive]}
+            onPress={wifiActive ? stopWifi : startWifi}
+          >
+            <Text style={styles.buttonText}>
+              {wifiActive ? 'Stop Wi-Fi Direct' : 'Start Wi-Fi Direct'}
+            </Text>
+          </Pressable>
+          <Text style={styles.status}>
+            {wifiDiscovering
+              ? 'Wi-Fi Direct discovery active.'
+              : 'Wi-Fi Direct idle.'}
+          </Text>
+          {wifiError ? <Text style={styles.error}>{wifiError}</Text> : null}
+          {wifiPeers.length > 0 ? (
+            <Text style={styles.muted}>
+              Peers: {wifiPeers.map(peer => peer.name || peer.address).join(', ')}
+            </Text>
+          ) : (
+            <Text style={styles.muted}>No Wi-Fi Direct peers yet.</Text>
+          )}
         </View>
       ) : null}
       <InfoCard
