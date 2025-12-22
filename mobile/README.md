@@ -79,6 +79,18 @@ You've successfully run and modified your React Native App. :partying_face:
 
 ### Now what?
 
+## TestFlight (iOS cloud build)
+
+If you do not have a Mac, you can build iOS with EAS Build:
+
+```sh
+# From mobile/
+npx eas-cli login
+npx eas-cli build --platform ios --profile production
+```
+
+You will need an Apple Developer account and App Store Connect access.
+
 - If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
 - If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
 
