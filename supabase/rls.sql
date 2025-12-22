@@ -14,6 +14,48 @@ as $$
   );
 $$;
 
+create or replace function public.match_contacts(emails text[], phones text[])
+returns table (id uuid, display_name text, match_type text)
+language sql
+security definer
+set search_path = public
+as $$
+  with input_emails as (
+    select distinct lower(trim(value)) as email
+    from unnest(coalesce(emails, array[]::text[])) value
+    where length(trim(value)) > 0
+  ),
+  input_phones as (
+    select distinct regexp_replace(value, '\D', '', 'g') as phone
+    from unnest(coalesce(phones, array[]::text[])) value
+    where length(regexp_replace(value, '\D', '', 'g')) >= 7
+  )
+  select
+    profiles.id,
+    profiles.display_name,
+    case
+      when profiles.contact_email is not null
+        and profiles.contact_email in (select email from input_emails)
+        then 'email'
+      when profiles.contact_phone is not null
+        and profiles.contact_phone in (select phone from input_phones)
+        then 'phone'
+      else null
+    end as match_type
+  from public.profiles
+  where auth.role() = 'authenticated'
+    and profiles.id <> auth.uid()
+    and (
+      (profiles.contact_email is not null
+        and profiles.contact_email in (select email from input_emails))
+      or (profiles.contact_phone is not null
+        and profiles.contact_phone in (select phone from input_phones))
+    );
+$$;
+
+revoke all on function public.match_contacts(text[], text[]) from public;
+grant execute on function public.match_contacts(text[], text[]) to authenticated;
+
 alter table public.profiles enable row level security;
 alter table public.friendships enable row level security;
 alter table public.privacy_settings enable row level security;

@@ -1427,10 +1427,10 @@ export default function App() {
                   >
                     {contactImportBusy ? 'Importing...' : 'Import phone contacts'}
                   </button>
-                  {!supportsContactPicker && (
-                    <span className="muted">Contact picker not supported.</span>
-                  )}
                 </div>
+                {!supportsContactPicker && (
+                  <p className="muted">Contact picker not supported.</p>
+                )}
                 {importedContactCount !== null && (
                   <p className="muted">
                     Imported {importedContactCount} contacts -{' '}

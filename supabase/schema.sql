@@ -28,8 +28,16 @@ create table if not exists profiles (
   id uuid primary key references auth.users on delete cascade,
   display_name text,
   avatar_url text,
+  contact_email text,
+  contact_phone text,
   created_at timestamptz not null default now()
 );
+
+alter table if exists profiles
+  add column if not exists contact_email text;
+
+alter table if exists profiles
+  add column if not exists contact_phone text;
 
 create table if not exists friendships (
   id uuid primary key default gen_random_uuid(),
@@ -125,6 +133,12 @@ create table if not exists community_alerts (
 
 create index if not exists location_updates_user_time_idx
   on location_updates (user_id, created_at desc);
+
+create index if not exists profiles_contact_email_idx
+  on profiles (contact_email);
+
+create index if not exists profiles_contact_phone_idx
+  on profiles (contact_phone);
 
 create index if not exists last_locations_geom_idx
   on last_locations using gist (geom);
