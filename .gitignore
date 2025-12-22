@@ -8,6 +8,9 @@ mobile/ios/Pods/
 mobile/ios/build/
 mobile/.bundle/
 mobile/.env
+mcp/node_modules/
+mcp/.env
+mcp/.env.*
 .netlify/
 .env
 .env.*

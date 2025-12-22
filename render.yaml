@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: ifoundyou-mcp
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: cd mcp && npm install
+    startCommand: cd mcp && npm run start
+    envVars:
+      - key: NODE_VERSION
+        value: 18
+      - key: PORT
+        value: 3000
