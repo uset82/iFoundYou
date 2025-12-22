@@ -47,6 +47,18 @@ type CommunityAlert = {
   distance_m?: number;
 };
 
+type ContactMatch = {
+  id: string;
+  display_name: string | null;
+  match_type: string | null;
+};
+
+type DeviceContact = {
+  name?: string[];
+  email?: string[];
+  tel?: string[];
+};
+
 const DEFAULT_CENTER = {
   lat: 37.7749,
   lon: -122.4194,
@@ -89,9 +101,9 @@ const distanceMeters = (
   const a =
     sinLat * sinLat +
     Math.cos(toRadians(latA)) *
-      Math.cos(toRadians(latB)) *
-      sinLon *
-      sinLon;
+    Math.cos(toRadians(latB)) *
+    sinLon *
+    sinLon;
   return 2 * earthRadius * Math.asin(Math.sqrt(a));
 };
 
@@ -120,6 +132,36 @@ const formatDistance = (distance?: number) => {
   return `${Math.round(distance)}m`;
 };
 
+const normalizeEmail = (value: string) => value.trim().toLowerCase();
+
+const normalizePhone = (value: string) => value.replace(/[^\d]/g, '');
+
+const extractContactsFromText = (input: string) => {
+  const emails = new Set<string>();
+  const phones = new Set<string>();
+
+  const emailMatches =
+    input.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) ?? [];
+  emailMatches.forEach((match) => {
+    const email = normalizeEmail(match);
+    if (email) {
+      emails.add(email);
+    }
+  });
+
+  const phoneMatches = input.match(/(\+?\d[\d\s().-]{6,}\d)/g) ?? [];
+  phoneMatches.forEach((match) => {
+    const phone = normalizePhone(match);
+    if (phone.length >= 7) {
+      phones.add(phone);
+    }
+  });
+
+  return { emails: Array.from(emails), phones: Array.from(phones) };
+};
+
+const mergeUnique = (values: string[]) => Array.from(new Set(values));
+
 export default function App() {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -129,11 +171,15 @@ export default function App() {
   const lastSentRef = useRef<number>(0);
   const lastAlertRef = useRef<Map<string, number>>(new Map());
   const lastServerFetchRef = useRef<number>(0);
+
   const lastDiscoveryFetchRef = useRef<number>(0);
+
+  const [view, setView] = useState<'map' | 'friends' | 'alerts' | 'discover' | 'settings'>('map');
 
   const [sharing, setSharing] = useState(false);
   const [position, setPosition] = useState<PositionState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [geolocationPermission, setGeolocationPermission] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
   const [session, setSession] = useState<Session | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
@@ -145,6 +191,29 @@ export default function App() {
   const [friendIdInput, setFriendIdInput] = useState('');
   const [friendBusy, setFriendBusy] = useState(false);
   const [friendError, setFriendError] = useState<string | null>(null);
+  const [contactInput, setContactInput] = useState('');
+  const [contactMatches, setContactMatches] = useState<ContactMatch[]>([]);
+  const [contactBusy, setContactBusy] = useState(false);
+  const [contactError, setContactError] = useState<string | null>(null);
+  const [contactLookupSummary, setContactLookupSummary] = useState<string | null>(
+    null
+  );
+  const [importedContactEmails, setImportedContactEmails] = useState<string[]>(
+    []
+  );
+  const [importedContactPhones, setImportedContactPhones] = useState<string[]>(
+    []
+  );
+  const [importedContactCount, setImportedContactCount] = useState<number | null>(
+    null
+  );
+  const [contactImportBusy, setContactImportBusy] = useState(false);
+  const [contactEmailEnabled, setContactEmailEnabled] = useState(false);
+  const [contactPhoneInput, setContactPhoneInput] = useState('');
+  const [contactSettingsBusy, setContactSettingsBusy] = useState(false);
+  const [contactSettingsError, setContactSettingsError] = useState<string | null>(
+    null
+  );
   const [nearbyFriends, setNearbyFriends] = useState<NearbyFriend[]>([]);
   const [serverNearby, setServerNearby] = useState<NearbyFriend[] | null>(null);
   const [discoverable, setDiscoverable] = useState(false);
@@ -172,6 +241,21 @@ export default function App() {
   const [alertDurationMinutes, setAlertDurationMinutes] = useState(240);
 
   const isAuthed = useMemo(() => Boolean(session?.user), [session]);
+  const supportsContactPicker = useMemo(() => {
+    if (typeof navigator === 'undefined') {
+      return false;
+    }
+    const manager = (navigator as unknown as { contacts?: { select?: () => void } })
+      .contacts;
+    return Boolean(manager && typeof manager.select === 'function');
+  }, []);
+  const friendStatusById = useMemo(() => {
+    const statusMap = new Map<string, 'accepted' | 'incoming' | 'outgoing'>();
+    friends.forEach((friend) => statusMap.set(friend.id, 'accepted'));
+    pendingIncoming.forEach((req) => statusMap.set(req.user_id, 'incoming'));
+    pendingOutgoing.forEach((req) => statusMap.set(req.friend_id, 'outgoing'));
+    return statusMap;
+  }, [friends, pendingIncoming, pendingOutgoing]);
 
   useEffect(() => {
     if (!hasSupabaseConfig) {
@@ -196,6 +280,24 @@ export default function App() {
       return;
     }
     setNotificationPermission(Notification.permission);
+  }, []);
+
+  useEffect(() => {
+    if (!('geolocation' in navigator)) {
+      setGeolocationPermission('unsupported');
+      return;
+    }
+
+    if ('permissions' in navigator) {
+      navigator.permissions.query({ name: 'geolocation' }).then((result) => {
+        setGeolocationPermission(result.state as 'granted' | 'denied' | 'prompt');
+        result.addEventListener('change', () => {
+          setGeolocationPermission(result.state as 'granted' | 'denied' | 'prompt');
+        });
+      }).catch(() => {
+        setGeolocationPermission('prompt');
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -434,6 +536,40 @@ export default function App() {
   }, [refreshFriends, session?.user]);
 
   useEffect(() => {
+    if (!session?.user) {
+      setContactEmailEnabled(false);
+      setContactPhoneInput('');
+      setContactSettingsError(null);
+      setContactMatches([]);
+      setContactInput('');
+      setImportedContactEmails([]);
+      setImportedContactPhones([]);
+      setImportedContactCount(null);
+      setContactLookupSummary(null);
+      setContactError(null);
+      return;
+    }
+    if (!hasSupabaseConfig) {
+      return;
+    }
+    const loadContactSettings = async () => {
+      const { data, error: profileError } = await supabase
+        .from('profiles')
+        .select('contact_email, contact_phone')
+        .eq('id', session.user.id)
+        .maybeSingle();
+      if (profileError) {
+        setContactSettingsError(profileError.message);
+        return;
+      }
+      setContactEmailEnabled(Boolean(data?.contact_email));
+      setContactPhoneInput(data?.contact_phone ?? '');
+      setContactSettingsError(null);
+    };
+    void loadContactSettings();
+  }, [session?.user]);
+
+  useEffect(() => {
     void refreshNotifications();
   }, [refreshNotifications]);
 
@@ -474,7 +610,7 @@ export default function App() {
     };
   }, []);
 
-  const startSharing = () => {
+  const startSharing = useCallback(() => {
     setError(null);
 
     if (!session?.user) {
@@ -484,6 +620,7 @@ export default function App() {
 
     if (!('geolocation' in navigator)) {
       setError('Geolocation is not supported in this browser.');
+      setGeolocationPermission('unsupported');
       return;
     }
 
@@ -500,9 +637,27 @@ export default function App() {
           accuracy: pos.coords.accuracy ?? null,
           updatedAt: new Date().toISOString(),
         });
+        setGeolocationPermission('granted');
       },
       (err) => {
-        setError(err.message);
+        let errorMessage = 'Unable to get your location.';
+
+        switch (err.code) {
+          case err.PERMISSION_DENIED:
+            errorMessage = 'Location permission denied. Please enable location access in your browser settings.';
+            setGeolocationPermission('denied');
+            break;
+          case err.POSITION_UNAVAILABLE:
+            errorMessage = 'Location information is unavailable. Please check your device settings.';
+            break;
+          case err.TIMEOUT:
+            errorMessage = 'Location request timed out. Please try again.';
+            break;
+          default:
+            errorMessage = `Location error: ${err.message}`;
+        }
+
+        setError(errorMessage);
         setSharing(false);
       },
       {
@@ -511,7 +666,7 @@ export default function App() {
         timeout: 20_000,
       }
     );
-  };
+  }, [session?.user, sharing]);
 
   const stopSharing = () => {
     if (watchIdRef.current !== null && 'geolocation' in navigator) {
@@ -520,6 +675,12 @@ export default function App() {
     watchIdRef.current = null;
     setSharing(false);
   };
+
+  useEffect(() => {
+    if (session?.user && !sharing && geolocationPermission !== 'denied') {
+      startSharing();
+    }
+  }, [session?.user, sharing, geolocationPermission, startSharing]);
 
   const signUp = async () => {
     if (!hasSupabaseConfig) {
@@ -660,35 +821,210 @@ export default function App() {
     setCommunityAlertBusy(false);
   };
 
-  const sendFriendRequest = async () => {
+  const toggleContactEmail = async () => {
+    if (!session?.user) {
+      return;
+    }
+    if (!hasSupabaseConfig) {
+      setContactSettingsError('Missing Supabase config.');
+      return;
+    }
+    const accountEmail = session.user.email;
+    if (!accountEmail) {
+      setContactSettingsError('No email on file for this account.');
+      return;
+    }
+    const nextValue = !contactEmailEnabled;
+    setContactSettingsBusy(true);
+    setContactSettingsError(null);
+    const { error: updateError } = await supabase.from('profiles').upsert(
+      {
+        id: session.user.id,
+        contact_email: nextValue ? normalizeEmail(accountEmail) : null,
+      },
+      { onConflict: 'id' }
+    );
+    if (updateError) {
+      setContactSettingsError(updateError.message);
+    } else {
+      setContactEmailEnabled(nextValue);
+    }
+    setContactSettingsBusy(false);
+  };
+
+  const saveContactPhone = async () => {
+    if (!session?.user) {
+      return;
+    }
+    if (!hasSupabaseConfig) {
+      setContactSettingsError('Missing Supabase config.');
+      return;
+    }
+    const trimmed = contactPhoneInput.trim();
+    const normalized = trimmed ? normalizePhone(trimmed) : '';
+    if (trimmed && normalized.length < 7) {
+      setContactSettingsError('Phone number looks too short.');
+      return;
+    }
+    setContactSettingsBusy(true);
+    setContactSettingsError(null);
+    const { error: updateError } = await supabase.from('profiles').upsert(
+      {
+        id: session.user.id,
+        contact_phone: trimmed ? normalized : null,
+      },
+      { onConflict: 'id' }
+    );
+    if (updateError) {
+      setContactSettingsError(updateError.message);
+    } else {
+      setContactPhoneInput(trimmed ? normalized : '');
+    }
+    setContactSettingsBusy(false);
+  };
+
+  const importDeviceContacts = async () => {
+    if (!supportsContactPicker) {
+      setContactError('Contact picker is not supported in this browser.');
+      return;
+    }
+    const picker = (
+      navigator as unknown as {
+        contacts?: {
+          select: (
+            properties: string[],
+            options: { multiple: boolean }
+          ) => Promise<DeviceContact[]>;
+        };
+      }
+    ).contacts;
+    if (!picker) {
+      setContactError('Contact picker is unavailable.');
+      return;
+    }
+    setContactImportBusy(true);
+    setContactError(null);
+    try {
+      const contacts = await picker.select(['name', 'email', 'tel'], {
+        multiple: true,
+      });
+      const nextEmails = new Set(importedContactEmails);
+      const nextPhones = new Set(importedContactPhones);
+      contacts.forEach((contact) => {
+        contact.email?.forEach((value) => {
+          const email = normalizeEmail(value);
+          if (email) {
+            nextEmails.add(email);
+          }
+        });
+        contact.tel?.forEach((value) => {
+          const phone = normalizePhone(value);
+          if (phone.length >= 7) {
+            nextPhones.add(phone);
+          }
+        });
+      });
+      setImportedContactEmails(Array.from(nextEmails));
+      setImportedContactPhones(Array.from(nextPhones));
+      setImportedContactCount(contacts.length);
+      if (contacts.length === 0) {
+        setContactError('No contacts selected.');
+      }
+    } catch {
+      setContactError('Contact access was canceled or blocked.');
+    }
+    setContactImportBusy(false);
+  };
+
+  const findContactMatches = async () => {
+    if (!hasSupabaseConfig) {
+      setContactError('Missing Supabase config.');
+      return;
+    }
+    if (!session?.user) {
+      setContactError('Sign in first to search contacts.');
+      return;
+    }
+    const manual = extractContactsFromText(contactInput);
+    const emails = mergeUnique([...manual.emails, ...importedContactEmails]);
+    const phones = mergeUnique([...manual.phones, ...importedContactPhones]);
+    if (emails.length === 0 && phones.length === 0) {
+      setContactError('Add at least one email or phone number.');
+      return;
+    }
+    setContactBusy(true);
+    setContactError(null);
+    const { data, error: matchError } = await supabase.rpc('match_contacts', {
+      emails,
+      phones,
+    });
+    if (matchError) {
+      setContactError(matchError.message);
+      setContactMatches([]);
+    } else {
+      setContactMatches((data as ContactMatch[]) ?? []);
+    }
+    setContactLookupSummary(
+      `Checked ${emails.length} emails and ${phones.length} phones.`
+    );
+    setContactBusy(false);
+  };
+
+  const createFriendRequest = async (friendId: string) => {
     if (!session?.user) {
       setFriendError('Sign in first to add friends.');
-      return;
+      return false;
     }
-    if (!friendIdInput.trim()) {
+    if (!hasSupabaseConfig) {
+      setFriendError('Missing Supabase config.');
+      return false;
+    }
+    const trimmed = friendId.trim();
+    if (!trimmed) {
       setFriendError('Enter a friend user id.');
-      return;
+      return false;
     }
-    if (friendIdInput.trim() === session.user.id) {
+    if (trimmed === session.user.id) {
       setFriendError('You cannot add yourself.');
-      return;
+      return false;
+    }
+    const currentStatus = friendStatusById.get(trimmed);
+    if (currentStatus === 'accepted') {
+      setFriendError('You are already friends.');
+      return false;
+    }
+    if (currentStatus === 'outgoing') {
+      setFriendError('Friend request already sent.');
+      return false;
+    }
+    if (currentStatus === 'incoming') {
+      setFriendError('They already requested you.');
+      return false;
     }
 
     setFriendBusy(true);
     setFriendError(null);
     const { error: requestError } = await supabase.from('friendships').insert({
       user_id: session.user.id,
-      friend_id: friendIdInput.trim(),
+      friend_id: trimmed,
       status: 'pending',
     });
 
     if (requestError) {
       setFriendError(requestError.message);
-    } else {
-      setFriendIdInput('');
-      await refreshFriends();
+      setFriendBusy(false);
+      return false;
     }
+    await refreshFriends();
     setFriendBusy(false);
+    return true;
+  };
+
+  const sendFriendRequest = async () => {
+    const success = await createFriendRequest(friendIdInput);
+    if (success) {
+      setFriendIdInput('');
+    }
   };
 
   const respondToRequest = async (requestId: string, status: string) => {
@@ -889,19 +1225,39 @@ export default function App() {
           </p>
         </div>
         <nav className="nav">
-          <button type="button" className="nav-item is-active">
+          <button
+            type="button"
+            className={`nav-item ${view === 'map' ? 'is-active' : ''}`}
+            onClick={() => setView('map')}
+          >
             Map
           </button>
-          <button type="button" className="nav-item">
+          <button
+            type="button"
+            className={`nav-item ${view === 'friends' ? 'is-active' : ''}`}
+            onClick={() => setView('friends')}
+          >
             Friends
           </button>
-          <button type="button" className="nav-item">
+          <button
+            type="button"
+            className={`nav-item ${view === 'alerts' ? 'is-active' : ''}`}
+            onClick={() => setView('alerts')}
+          >
             Alerts
           </button>
-          <button type="button" className="nav-item">
+          <button
+            type="button"
+            className={`nav-item ${view === 'discover' ? 'is-active' : ''}`}
+            onClick={() => setView('discover')}
+          >
             Discover
           </button>
-          <button type="button" className="nav-item">
+          <button
+            type="button"
+            className={`nav-item ${view === 'settings' ? 'is-active' : ''}`}
+            onClick={() => setView('settings')}
+          >
             Settings
           </button>
         </nav>
@@ -964,6 +1320,23 @@ export default function App() {
               Enable alerts
             </button>
           </div>
+          <div className="alerts-row">
+            <span className="muted">
+              Location:{' '}
+              {geolocationPermission === 'unsupported'
+                ? 'Unavailable'
+                : geolocationPermission === 'granted'
+                  ? 'Enabled'
+                  : geolocationPermission === 'denied'
+                    ? 'Blocked'
+                    : 'Not requested'}
+            </span>
+            {geolocationPermission === 'denied' && (
+              <span className="muted" style={{ fontSize: '0.85em' }}>
+                Enable in browser settings
+              </span>
+            )}
+          </div>
         </div>
         <div className="sidebar-note">
           <p className="muted">
@@ -973,355 +1346,546 @@ export default function App() {
       </aside>
 
       <main className="main">
-        <section className="map-panel">
-          <div className="map" ref={mapContainerRef} />
-        </section>
-        <section className="tile-grid">
-          <div className="tile">
-            <h3>Nearby now</h3>
-            {(serverNearby ?? nearbyFriends).length === 0 ? (
-              <p className="muted">No friends within {ALERT_RADIUS_METERS}m.</p>
-            ) : (
-              <ul>
-                {(serverNearby ?? nearbyFriends).map((friend) => (
-                  <li key={friend.id}>
-                    {friend.name}
-                    {friend.distance_m !== undefined && (
-                      <span className="distance">
-                        {Math.round(friend.distance_m)}m
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-            <p className="muted nearby-source">
-              Source: {serverNearby ? 'Server' : 'Local'}
-            </p>
-          </div>
-          <div className="tile">
-            <h3>Discover</h3>
-            {discoveredPeople.length === 0 ? (
-              <p className="muted">No discoverable people within 1000m.</p>
-            ) : (
-              <ul>
-                {discoveredPeople.map((person) => (
-                  <li key={person.id}>
-                    {person.name}
-                    {person.distance_m !== undefined && (
-                      <span className="distance">
-                        {Math.round(person.distance_m)}m
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          <div className="tile">
-            <h3>Proximity alerts</h3>
-            {notifications.length === 0 ? (
-              <p className="muted">No alerts yet.</p>
-            ) : (
-              <ul>
-                {notifications.map((item) => (
-                  <li key={item.id}>
-                    {describeNotification(item)}
-                    <span className="distance">
-                      {new Date(item.created_at).toLocaleTimeString()}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {notificationsError && <p className="error">{notificationsError}</p>}
-          </div>
-          <div className="tile">
-            <h3>Community alerts</h3>
-            {communityAlerts.length === 0 ? (
-              <p className="muted">No alerts nearby.</p>
-            ) : (
-              <ul>
-                {communityAlerts.map((alert) => {
-                  const distanceLabel = formatDistance(alert.distance_m);
-                  const categoryLabel =
-                    COMMUNITY_ALERT_CATEGORIES.find(
-                      (item) => item.value === alert.category
-                    )?.label ?? 'Other';
-                  return (
-                    <li key={alert.id} className="alert-row">
-                      <span className={`tag tag-${alert.category}`}>
-                        {categoryLabel}
-                      </span>
-                      <div className="alert-body">
-                        <strong>{alert.message}</strong>
-                        <span className="distance">
-                          {distanceLabel ? `${distanceLabel} · ` : ''}
-                          {new Date(alert.created_at).toLocaleTimeString()}
-                        </span>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            {communityAlertsError && (
-              <p className="error">{communityAlertsError}</p>
-            )}
-          </div>
-        </section>
-      </main>
-
-      <aside className="rail">
-        <div className="rail-header">
-          <h2>Friends</h2>
-          <p className="muted">Invite, manage, and share with your circle.</p>
-        </div>
-        {!isAuthed && (
-          <div className="card auth-card">
-            <p className="muted">Sign in to share location and invite friends.</p>
-            <label>
-              Email
-              <input
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="you@example.com"
-                disabled={!hasSupabaseConfig}
-              />
-            </label>
-            <label>
-              Password
-              <input
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="password"
-                disabled={!hasSupabaseConfig}
-              />
-            </label>
-            <div className="auth-actions">
-              <button
-                className="primary"
-                onClick={signIn}
-                disabled={authBusy || !hasSupabaseConfig}
-              >
-                Sign in
-              </button>
-              <button
-                className="ghost"
-                onClick={signUp}
-                disabled={authBusy || !hasSupabaseConfig}
-              >
-                Create account
-              </button>
-              <button
-                className="google"
-                onClick={signInWithGoogle}
-                disabled={authBusy || !hasSupabaseConfig}
-              >
-                Continue with Google
-              </button>
-            </div>
-            {!hasSupabaseConfig && (
-              <p className="error">Supabase env vars are missing.</p>
-            )}
-            {authError && <p className="error">{authError}</p>}
-          </div>
-        )}
-        {isAuthed && (
-          <div className="card profile-card">
-            <div>
-              <strong>{session?.user.email}</strong>
-              <span>Signed in</span>
-            </div>
-            <button className="ghost" onClick={signOut}>
-              Sign out
-            </button>
-          </div>
+        {view === 'map' && (
+          <>
+            <section className="map-panel">
+              <div className="map" ref={mapContainerRef} />
+            </section>
+            <section className="tile-grid">
+              <div className="tile">
+                <h3>Nearby now</h3>
+                {(serverNearby ?? nearbyFriends).length === 0 ? (
+                  <p className="muted">No friends within {ALERT_RADIUS_METERS}m.</p>
+                ) : (
+                  <ul>
+                    {(serverNearby ?? nearbyFriends).map((friend) => (
+                      <li key={friend.id}>
+                        {friend.name}
+                        {friend.distance_m !== undefined && (
+                          <span className="distance">
+                            {Math.round(friend.distance_m)}m
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <p className="muted nearby-source">
+                  Source: {serverNearby ? 'Server' : 'Local'}
+                </p>
+              </div>
+            </section>
+          </>
         )}
 
-        {isAuthed && (
-          <div className="card discover-card">
-            <div>
-              <strong>Discovery</strong>
-              <span>
-                {discoverable
-                  ? 'You are visible to nearby people.'
-                  : 'You are hidden from discovery.'}
-              </span>
+        {view === 'friends' && (
+          <div className="rail">
+            <div className="rail-header">
+              <h2>Friends</h2>
+              <p className="muted">Invite, manage, and share with your circle.</p>
             </div>
-            <button
-              className="ghost"
-              onClick={toggleDiscoverable}
-              disabled={discoverBusy}
-            >
-              {discoverable ? 'Disable' : 'Enable'}
-            </button>
-            {discoverError && <p className="error">{discoverError}</p>}
-          </div>
-        )}
 
-        {isAuthed && (
-          <div className="card emergency-card">
-            <h3>Emergency broadcast</h3>
-            <p className="muted">Send a short alert to people nearby.</p>
-            <label className="field">
-              Category
-              <select
-                value={alertCategory}
-                onChange={(event) => setAlertCategory(event.target.value)}
-              >
-                {COMMUNITY_ALERT_CATEGORIES.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              Message
-              <textarea
-                value={alertMessage}
-                onChange={(event) => setAlertMessage(event.target.value)}
-                rows={3}
-                maxLength={COMMUNITY_ALERT_MESSAGE_MAX}
-                placeholder="Need water near 3rd Ave. Family with kids."
-              />
-            </label>
-            <div className="form-row">
-              <label className="field">
-                Radius (km)
-                <input
-                  type="number"
-                  min="0.2"
-                  max="10"
-                  step="0.1"
-                  value={alertRadiusKm}
-                  onChange={(event) => {
-                    const nextValue = Number(event.target.value);
-                    setAlertRadiusKm(Number.isFinite(nextValue) ? nextValue : 2);
-                  }}
-                />
-              </label>
-              <label className="field">
-                Duration
-                <select
-                  value={alertDurationMinutes}
-                  onChange={(event) =>
-                    setAlertDurationMinutes(Number(event.target.value))
-                  }
+            {isAuthed && (
+              <div className="card request-card">
+                <label>
+                  Add friend by id
+                  <input
+                    value={friendIdInput}
+                    onChange={(event) => setFriendIdInput(event.target.value)}
+                    placeholder="friend uuid"
+                  />
+                </label>
+                <button
+                  className="primary"
+                  onClick={sendFriendRequest}
+                  disabled={friendBusy}
                 >
-                  {COMMUNITY_ALERT_DURATIONS.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <button
-              className="primary"
-              onClick={sendCommunityAlert}
-              disabled={communityAlertBusy || !position}
-            >
-              Send alert
-            </button>
-            {communityAlertError && (
-              <p className="error">{communityAlertError}</p>
+                  Send request
+                </button>
+                {friendError && <p className="error">{friendError}</p>}
+              </div>
             )}
+
+            {isAuthed && (
+              <div className="card contact-card">
+                <h3>Find friends from contacts</h3>
+                <p className="muted">
+                  Import from your phone or paste emails and phone numbers.
+                </p>
+                <div className="contact-actions">
+                  <button
+                    className="ghost"
+                    onClick={importDeviceContacts}
+                    disabled={!supportsContactPicker || contactImportBusy}
+                  >
+                    {contactImportBusy ? 'Importing...' : 'Import phone contacts'}
+                  </button>
+                  {!supportsContactPicker && (
+                    <span className="muted">Contact picker not supported.</span>
+                  )}
+                </div>
+                {importedContactCount !== null && (
+                  <p className="muted">
+                    Imported {importedContactCount} contacts -{' '}
+                    {importedContactEmails.length} emails -{' '}
+                    {importedContactPhones.length} phones
+                  </p>
+                )}
+                <label className="field">
+                  Paste email/phone contacts
+                  <textarea
+                    value={contactInput}
+                    onChange={(event) => setContactInput(event.target.value)}
+                    rows={3}
+                    placeholder={'alex@example.com\n+1 415 555 0199'}
+                  />
+                </label>
+                <button
+                  className="primary"
+                  onClick={findContactMatches}
+                  disabled={contactBusy}
+                >
+                  {contactBusy ? 'Searching...' : 'Find matches'}
+                </button>
+                {contactLookupSummary && (
+                  <p className="muted">{contactLookupSummary}</p>
+                )}
+                {contactError && <p className="error">{contactError}</p>}
+              </div>
+            )}
+
+            {isAuthed && contactLookupSummary && (
+              <div className="card contact-results">
+                <h3>Matches</h3>
+                {contactMatches.length === 0 ? (
+                  <p className="muted">
+                    No matches yet. Ask friends to enable contact invites.
+                  </p>
+                ) : (
+                  contactMatches.map((match) => {
+                    const status = friendStatusById.get(match.id);
+                    const statusLabel =
+                      status === 'accepted'
+                        ? 'Already friends'
+                        : status === 'outgoing'
+                          ? 'Request sent'
+                          : status === 'incoming'
+                            ? 'Incoming request'
+                            : null;
+                    const isDisabled =
+                      friendBusy ||
+                      status === 'accepted' ||
+                      status === 'outgoing' ||
+                      status === 'incoming';
+                    const matchLabel =
+                      match.match_type === 'phone'
+                        ? 'Matched by phone'
+                        : match.match_type === 'email'
+                          ? 'Matched by email'
+                          : 'Matched contact';
+                    return (
+                      <div key={match.id} className="request-row contact-row">
+                        <div className="contact-meta">
+                          <strong>{match.display_name ?? 'Friend'}</strong>
+                          <span className="muted">
+                            {matchLabel}
+                            {statusLabel ? ` - ${statusLabel}` : ''}
+                          </span>
+                        </div>
+                        <div className="request-actions">
+                          <button
+                            className="primary"
+                            onClick={() => createFriendRequest(match.id)}
+                            disabled={isDisabled}
+                          >
+                            {status === 'accepted'
+                              ? 'Friends'
+                              : status === 'outgoing'
+                                ? 'Sent'
+                                : status === 'incoming'
+                                  ? 'Incoming'
+                                  : 'Send request'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+
+            {pendingIncoming.length > 0 && (
+              <div className="card pending-list">
+                <h3>Incoming requests</h3>
+                {pendingIncoming.map((req) => (
+                  <div key={req.id} className="request-row">
+                    <span>{req.user_id}</span>
+                    <div className="request-actions">
+                      <button
+                        className="primary"
+                        onClick={() => respondToRequest(req.id, 'accepted')}
+                        disabled={friendBusy}
+                      >
+                        Accept
+                      </button>
+                      <button
+                        className="ghost"
+                        onClick={() => respondToRequest(req.id, 'blocked')}
+                        disabled={friendBusy}
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {pendingOutgoing.length > 0 && (
+              <div className="card pending-list">
+                <h3>Outgoing requests</h3>
+                {pendingOutgoing.map((req) => (
+                  <div key={req.id} className="request-row">
+                    <span>{req.friend_id}</span>
+                    <span className="muted">Pending</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="card friend-list">
+              {friends.length === 0 && (
+                <div className="friend-card empty">
+                  <div>
+                    <strong>No friends yet</strong>
+                    <span>Add friends once requests are wired.</span>
+                  </div>
+                </div>
+              )}
+              {friends.map((friend) => (
+                <div key={friend.id} className="friend-card">
+                  <div>
+                    <strong>{friend.name}</strong>
+                    <span>
+                      {friend.updatedAt
+                        ? `Updated ${new Date(friend.updatedAt).toLocaleTimeString()}`
+                        : 'No location yet'}
+                    </span>
+                  </div>
+                  <button className="ghost" disabled>
+                    Ping
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
-        {isAuthed && (
-          <div className="card request-card">
-            <label>
-              Add friend by id
-              <input
-                value={friendIdInput}
-                onChange={(event) => setFriendIdInput(event.target.value)}
-                placeholder="friend uuid"
-              />
-            </label>
-            <button
-              className="primary"
-              onClick={sendFriendRequest}
-              disabled={friendBusy}
-            >
-              Send request
-            </button>
-            {friendError && <p className="error">{friendError}</p>}
+        {view === 'alerts' && (
+          <div className="rail">
+            <div className="rail-header">
+              <h2>Alerts</h2>
+              <p className="muted">Emergency broadcasts and proximity notifications.</p>
+            </div>
+
+            {isAuthed && (
+              <div className="card emergency-card">
+                <h3>Emergency broadcast</h3>
+                <p className="muted">Send a short alert to people nearby.</p>
+                <label className="field">
+                  Category
+                  <select
+                    value={alertCategory}
+                    onChange={(event) => setAlertCategory(event.target.value)}
+                  >
+                    {COMMUNITY_ALERT_CATEGORIES.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  Message
+                  <textarea
+                    value={alertMessage}
+                    onChange={(event) => setAlertMessage(event.target.value)}
+                    rows={3}
+                    maxLength={COMMUNITY_ALERT_MESSAGE_MAX}
+                    placeholder="Need water near 3rd Ave. Family with kids."
+                  />
+                </label>
+                <div className="form-row">
+                  <label className="field">
+                    Radius (km)
+                    <input
+                      type="number"
+                      min="0.2"
+                      max="10"
+                      step="0.1"
+                      value={alertRadiusKm}
+                      onChange={(event) => {
+                        const nextValue = Number(event.target.value);
+                        setAlertRadiusKm(Number.isFinite(nextValue) ? nextValue : 2);
+                      }}
+                    />
+                  </label>
+                  <label className="field">
+                    Duration
+                    <select
+                      value={alertDurationMinutes}
+                      onChange={(event) =>
+                        setAlertDurationMinutes(Number(event.target.value))
+                      }
+                    >
+                      {COMMUNITY_ALERT_DURATIONS.map((item) => (
+                        <option key={item.value} value={item.value}>
+                          {item.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <button
+                  className="primary"
+                  onClick={sendCommunityAlert}
+                  disabled={communityAlertBusy || !position}
+                >
+                  Send alert
+                </button>
+                {communityAlertError && (
+                  <p className="error">{communityAlertError}</p>
+                )}
+              </div>
+            )}
+
+            <div className="tile">
+              <h3>Community alerts</h3>
+              {communityAlerts.length === 0 ? (
+                <p className="muted">No alerts nearby.</p>
+              ) : (
+                <ul>
+                  {communityAlerts.map((alert) => {
+                    const distanceLabel = formatDistance(alert.distance_m);
+                    const categoryLabel =
+                      COMMUNITY_ALERT_CATEGORIES.find(
+                        (item) => item.value === alert.category
+                      )?.label ?? 'Other';
+                    return (
+                      <li key={alert.id} className="alert-row">
+                        <span className={`tag tag-${alert.category}`}>
+                          {categoryLabel}
+                        </span>
+                        <div className="alert-body">
+                          <strong>{alert.message}</strong>
+                          <span className="distance">
+                            {distanceLabel ? `${distanceLabel} · ` : ''}
+                            {new Date(alert.created_at).toLocaleTimeString()}
+                          </span>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              {communityAlertsError && (
+                <p className="error">{communityAlertsError}</p>
+              )}
+            </div>
+
+            <div className="tile">
+              <h3>Proximity alerts</h3>
+              {notifications.length === 0 ? (
+                <p className="muted">No alerts yet.</p>
+              ) : (
+                <ul>
+                  {notifications.map((item) => (
+                    <li key={item.id}>
+                      {describeNotification(item)}
+                      <span className="distance">
+                        {new Date(item.created_at).toLocaleTimeString()}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {notificationsError && <p className="error">{notificationsError}</p>}
+            </div>
           </div>
         )}
 
-        {pendingIncoming.length > 0 && (
-          <div className="card pending-list">
-            <h3>Incoming requests</h3>
-            {pendingIncoming.map((req) => (
-              <div key={req.id} className="request-row">
-                <span>{req.user_id}</span>
-                <div className="request-actions">
+        {view === 'discover' && (
+          <div className="rail">
+            <div className="rail-header">
+              <h2>Discover</h2>
+              <p className="muted">Find people nearby who are open to connecting.</p>
+            </div>
+
+            {isAuthed && (
+              <div className="card discover-card">
+                <div>
+                  <strong>Discovery Mode</strong>
+                  <span>
+                    {discoverable
+                      ? 'You are visible to nearby people.'
+                      : 'You are hidden from discovery.'}
+                  </span>
+                </div>
+                <button
+                  className="ghost"
+                  onClick={toggleDiscoverable}
+                  disabled={discoverBusy}
+                >
+                  {discoverable ? 'Disable' : 'Enable'}
+                </button>
+                {discoverError && <p className="error">{discoverError}</p>}
+              </div>
+            )}
+
+            <div className="tile">
+              <h3>People nearby</h3>
+              {discoveredPeople.length === 0 ? (
+                <p className="muted">No discoverable people within 1000m.</p>
+              ) : (
+                <ul>
+                  {discoveredPeople.map((person) => (
+                    <li key={person.id}>
+                      {person.name}
+                      {person.distance_m !== undefined && (
+                        <span className="distance">
+                          {Math.round(person.distance_m)}m
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
+
+        {view === 'settings' && (
+          <div className="rail">
+            <div className="rail-header">
+              <h2>Settings</h2>
+              <p className="muted">Manage your account and preferences.</p>
+            </div>
+
+            {!isAuthed && (
+              <div className="card auth-card">
+                <p className="muted">Sign in to share location and invite friends.</p>
+                <label>
+                  Email
+                  <input
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="you@example.com"
+                    disabled={!hasSupabaseConfig}
+                  />
+                </label>
+                <label>
+                  Password
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder="password"
+                    disabled={!hasSupabaseConfig}
+                  />
+                </label>
+                <div className="auth-actions">
                   <button
                     className="primary"
-                    onClick={() => respondToRequest(req.id, 'accepted')}
-                    disabled={friendBusy}
+                    onClick={signIn}
+                    disabled={authBusy || !hasSupabaseConfig}
                   >
-                    Accept
+                    Sign in
                   </button>
                   <button
                     className="ghost"
-                    onClick={() => respondToRequest(req.id, 'blocked')}
-                    disabled={friendBusy}
+                    onClick={signUp}
+                    disabled={authBusy || !hasSupabaseConfig}
                   >
-                    Decline
+                    Create account
+                  </button>
+                  <button
+                    className="google"
+                    onClick={signInWithGoogle}
+                    disabled={authBusy || !hasSupabaseConfig}
+                  >
+                    Continue with Google
                   </button>
                 </div>
+                {!hasSupabaseConfig && (
+                  <p className="error">Supabase env vars are missing.</p>
+                )}
+                {authError && <p className="error">{authError}</p>}
               </div>
-            ))}
+            )}
+
+            {isAuthed && (
+              <div className="card profile-card">
+                <div>
+                  <strong>{session?.user.email}</strong>
+                  <span>Signed in</span>
+                </div>
+                <button className="ghost" onClick={signOut}>
+                  Sign out
+                </button>
+              </div>
+            )}
+
+            {isAuthed && (
+              <div className="card contact-settings">
+                <h3>Contact invites</h3>
+                <p className="muted">
+                  Let people you know find you by email or phone.
+                </p>
+                <label className="toggle-row">
+                  <input
+                    type="checkbox"
+                    checked={contactEmailEnabled}
+                    onChange={toggleContactEmail}
+                    disabled={contactSettingsBusy || !session?.user?.email}
+                  />
+                  <span>
+                    Allow requests by email
+                    {session?.user?.email ? ` (${session.user.email})` : ''}
+                  </span>
+                </label>
+                <label className="field">
+                  Phone number
+                  <input
+                    value={contactPhoneInput}
+                    onChange={(event) => {
+                      setContactPhoneInput(event.target.value);
+                      setContactSettingsError(null);
+                    }}
+                    placeholder="+1 415 555 0199"
+                  />
+                </label>
+                <div className="contact-actions">
+                  <button
+                    className="primary"
+                    onClick={saveContactPhone}
+                    disabled={contactSettingsBusy}
+                  >
+                    Save phone
+                  </button>
+                </div>
+                {contactSettingsError && (
+                  <p className="error">{contactSettingsError}</p>
+                )}
+              </div>
+            )}
+
+            <div className="card callout">
+              <h3>Status</h3>
+              <p>v0.1.0 Prototype</p>
+            </div>
           </div>
         )}
-
-        {pendingOutgoing.length > 0 && (
-          <div className="card pending-list">
-            <h3>Outgoing requests</h3>
-            {pendingOutgoing.map((req) => (
-              <div key={req.id} className="request-row">
-                <span>{req.friend_id}</span>
-                <span className="muted">Pending</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className="card friend-list">
-          {friends.length === 0 && (
-            <div className="friend-card empty">
-              <div>
-                <strong>No friends yet</strong>
-                <span>Add friends once requests are wired.</span>
-              </div>
-            </div>
-          )}
-          {friends.map((friend) => (
-            <div key={friend.id} className="friend-card">
-              <div>
-                <strong>{friend.name}</strong>
-                <span>
-                  {friend.updatedAt
-                    ? `Updated ${new Date(friend.updatedAt).toLocaleTimeString()}`
-                    : 'No location yet'}
-                </span>
-              </div>
-              <button className="ghost" disabled>
-                Ping
-              </button>
-            </div>
-          ))}
-        </div>
-        <div className="card callout">
-          <h3>Next step</h3>
-          <p>Add server-side proximity alerts and web push subscriptions.</p>
-        </div>
-      </aside>
+      </main>
     </div>
   );
 }
