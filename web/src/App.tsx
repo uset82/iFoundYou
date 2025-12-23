@@ -1550,6 +1550,12 @@ export default function App() {
             <>
               <div className="map-overlay">
                 <span className="pill">Friends online: {friends.length}</span>
+                <button
+                  className="ghost small"
+                  onClick={() => setView('share')}
+                >
+                  Share
+                </button>
               </div>
               <div className="map-search">
                 <div className="map-search-bar">
@@ -1602,6 +1608,18 @@ export default function App() {
 
         {view === 'friends' && (
           <section className="friends-panel">
+            <div className="panel-header panel-header-row">
+              <div>
+                <h2>Friends</h2>
+                <p className="muted">Chat with people you trust.</p>
+              </div>
+              <button
+                className="ghost small"
+                onClick={() => setView('share')}
+              >
+                Share
+              </button>
+            </div>
             {!isAuthed && authCard}
             {isAuthed && (
               <div className="friends-chat-layout">
@@ -1628,6 +1646,12 @@ export default function App() {
                           Back
                         </button>
                         <span className="muted">Friends</span>
+                        <button
+                          className="ghost small"
+                          onClick={() => setView('share')}
+                        >
+                          Share
+                        </button>
                       </div>
                       <ChatWindow
                         userId={session?.user?.id ?? ''}
@@ -2146,13 +2170,6 @@ export default function App() {
             onClick={() => setView('discover')}
           >
             Discover
-          </button>
-          <button
-            type="button"
-            className={`nav-item ${view === 'share' ? 'is-active' : ''}`}
-            onClick={() => setView('share')}
-          >
-            Share
           </button>
           <button
             type="button"

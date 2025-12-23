@@ -182,7 +182,7 @@ body {
   position: fixed;
   left: 16px;
   right: 16px;
-  bottom: 16px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
   padding: 8px;
   border-radius: 20px;
   border: 1px solid var(--border);
@@ -277,14 +277,17 @@ body {
 
 .map-overlay {
   position: absolute;
-  top: 16px;
+  top: calc(16px + env(safe-area-inset-top));
   right: 16px;
   z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .map-search {
   position: absolute;
-  top: 16px;
+  top: calc(16px + env(safe-area-inset-top));
   left: 16px;
   z-index: 4;
   width: min(420px, 90%);
@@ -362,6 +365,13 @@ body {
 .panel-header h2 {
   margin: 0 0 6px;
   font-family: 'Space Grotesk', sans-serif;
+}
+
+.panel-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .panel-grid {
@@ -871,7 +881,7 @@ button.small {
 @media (max-width: 900px) {
   .app-shell {
     grid-template-columns: 1fr;
-    padding: 18px 14px 110px;
+    padding: 18px 14px calc(110px + env(safe-area-inset-bottom));
   }
 
   .sidebar,
