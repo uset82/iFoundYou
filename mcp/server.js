@@ -1,9 +1,13 @@
 const { randomUUID } = require("node:crypto");
 const { z } = require("zod");
-const { McpServer } = require("@modelcontextprotocol/sdk/server/mcp");
-const { StreamableHTTPServerTransport } = require("@modelcontextprotocol/sdk/server/streamableHttp");
-const { createMcpExpressApp } = require("@modelcontextprotocol/sdk/server/express");
-const { isInitializeRequest } = require("@modelcontextprotocol/sdk/types");
+const { McpServer } = require("@modelcontextprotocol/sdk/server/mcp.js");
+const {
+  StreamableHTTPServerTransport
+} = require("@modelcontextprotocol/sdk/server/streamableHttp.js");
+const {
+  createMcpExpressApp
+} = require("@modelcontextprotocol/sdk/server/express.js");
+const { isInitializeRequest } = require("@modelcontextprotocol/sdk/types.js");
 
 const PORT = Number.parseInt(process.env.PORT || "3000", 10);
 const HOST = process.env.HOST || "0.0.0.0";
