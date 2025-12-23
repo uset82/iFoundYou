@@ -6,22 +6,40 @@ interface ChatListProps {
     peers: Peer[];
     onSelectPeer: (peer: Peer) => void;
     selectedPeerId?: string;
+    title?: string;
+    statusLabel?: string;
+    statusLabelSingular?: string;
+    emptyTitle?: string;
+    emptyHint?: string;
+    showSpinner?: boolean;
 }
 
-const ChatList: React.FC<ChatListProps> = ({ peers, onSelectPeer, selectedPeerId }) => {
+const ChatList: React.FC<ChatListProps> = ({
+    peers,
+    onSelectPeer,
+    selectedPeerId,
+    title = 'Nearby Peers',
+    statusLabel = 'active',
+    statusLabelSingular,
+    emptyTitle = 'Scanning for nearby devices...',
+    emptyHint = 'Make sure Bluetooth/Wi-Fi is on',
+    showSpinner = true
+}) => {
+    const badgeLabel =
+        peers.length === 1 ? (statusLabelSingular ?? statusLabel) : statusLabel;
     return (
         <div className="chat-list">
             <div className="chat-list-header">
-                <h2>Nearby Peers</h2>
-                <span className="status-badge">{peers.length} active</span>
+                <h2>{title}</h2>
+                <span className="status-badge">{peers.length} {badgeLabel}</span>
             </div>
 
             <div className="peers-container">
                 {peers.length === 0 ? (
                     <div className="no-peers">
-                        <div className="radar-spinner"></div>
-                        <p>Scanning for nearby devices...</p>
-                        <small>Make sure Bluetooth/Wi-Fi is on</small>
+                        {showSpinner && <div className="radar-spinner"></div>}
+                        <p>{emptyTitle}</p>
+                        {emptyHint && <small>{emptyHint}</small>}
                     </div>
                 ) : (
                     peers.map((peer) => (

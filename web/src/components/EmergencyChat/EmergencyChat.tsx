@@ -9,17 +9,38 @@ interface EmergencyChatProps {
     userId: string;
     userName: string;
     onClose: () => void;
+    isAuthed: boolean;
+    friends: Array<{ id: string; name: string }>;
 }
 
-const EmergencyChat: React.FC<EmergencyChatProps> = ({ userId, userName, onClose }) => {
+const EmergencyChat: React.FC<EmergencyChatProps> = ({
+    userId,
+    userName,
+    onClose,
+    isAuthed,
+    friends
+}) => {
     const [selectedPeer, setSelectedPeer] = useState<Peer | null>(null);
     const [peers, setPeers] = useState<Peer[]>([]);
     const multipeerRef = useRef<MultipeerManager | null>(null);
     const supportsNativeMesh =
         typeof window !== 'undefined' &&
         Boolean((window as any).webkit?.messageHandlers?.multipeer);
+    const chatMode = supportsNativeMesh ? 'native' : 'web';
+    const headerTitle = supportsNativeMesh ? 'Emergency Mesh Network' : 'Emergency Chat';
+    const statusLabel = supportsNativeMesh ? 'Online' : 'Online chat';
+    const webPeers: Peer[] = friends.map((friend) => ({
+        id: friend.id,
+        displayName: friend.name,
+        connected: true,
+        lastSeen: Date.now()
+    }));
+    const activePeers = supportsNativeMesh ? peers : webPeers;
 
     useEffect(() => {
+        if (!supportsNativeMesh) {
+            return undefined;
+        }
         // Initialize Multipeer Manager
         const multipeer = new MultipeerManager(userId, userName);
         multipeerRef.current = multipeer;
@@ -35,25 +56,57 @@ const EmergencyChat: React.FC<EmergencyChatProps> = ({ userId, userName, onClose
         return () => {
             multipeer.disconnect();
         };
-    }, [userId, userName]);
+    }, [supportsNativeMesh, userId, userName]);
+
+    useEffect(() => {
+        if (!selectedPeer) {
+            return;
+        }
+        const stillExists = activePeers.some((peer) => peer.id === selectedPeer.id);
+        if (!stillExists) {
+            setSelectedPeer(null);
+        }
+    }, [activePeers, selectedPeer]);
 
     return (
         <div className="emergency-chat-container">
             <div className="emergency-header">
                 <button className="close-btn" onClick={onClose}>{'<'} Back</button>
-                <h1>Emergency Mesh Network</h1>
-                <div className="network-status">
-                    {supportsNativeMesh ? 'Online' : 'Native only'}
-                </div>
+                <h1>{headerTitle}</h1>
+                <div className="network-status">{statusLabel}</div>
             </div>
 
-            {supportsNativeMesh ? (
+            {!isAuthed ? (
+                <div className="mesh-unavailable">
+                    <h2>Sign in to chat</h2>
+                    <p>Sign in to send messages to friends and family.</p>
+                </div>
+            ) : activePeers.length === 0 ? (
+                <div className="mesh-unavailable">
+                    <h2>No friends yet</h2>
+                    <p>Add friends in the Friends tab to start chatting.</p>
+                </div>
+            ) : (
                 <div className="chat-layout">
                     <div className={`emergency-sidebar ${selectedPeer ? 'hidden-mobile' : ''}`}>
                         <ChatList
-                            peers={peers}
+                            peers={activePeers}
                             onSelectPeer={setSelectedPeer}
                             selectedPeerId={selectedPeer?.id}
+                            title={supportsNativeMesh ? 'Nearby Peers' : 'Friends'}
+                            statusLabel={supportsNativeMesh ? 'active' : 'friends'}
+                            statusLabelSingular={supportsNativeMesh ? 'active' : 'friend'}
+                            emptyTitle={
+                                supportsNativeMesh
+                                    ? 'Scanning for nearby devices...'
+                                    : 'No friends yet'
+                            }
+                            emptyHint={
+                                supportsNativeMesh
+                                    ? 'Make sure Bluetooth/Wi-Fi is on'
+                                    : 'Add friends in the Friends tab'
+                            }
+                            showSpinner={supportsNativeMesh}
                         />
                     </div>
 
@@ -64,23 +117,20 @@ const EmergencyChat: React.FC<EmergencyChatProps> = ({ userId, userName, onClose
                                 userName={userName}
                                 recipientId={selectedPeer.id}
                                 recipientName={selectedPeer.displayName}
+                                mode={chatMode}
                             />
                         ) : (
                             <div className="empty-state">
-                                <div className="empty-icon">MESH</div>
-                                <h2>Select a peer to chat</h2>
-                                <p>Messages are sent directly via Bluetooth/Wi-Fi (No Internet required)</p>
+                                <div className="empty-icon">CHAT</div>
+                                <h2>Select a friend to chat</h2>
+                                <p>
+                                    {supportsNativeMesh
+                                        ? 'Messages are sent directly via Bluetooth/Wi-Fi (No Internet required)'
+                                        : 'Messages are sent in real time using the internet.'}
+                                </p>
                             </div>
                         )}
                     </div>
-                </div>
-            ) : (
-                <div className="mesh-unavailable">
-                    <h2>Mesh requires the native app</h2>
-                    <p>
-                        The web app cannot access Bluetooth or Wi-Fi Direct. Use the iOS or
-                        Android app for real peer-to-peer messaging.
-                    </p>
                 </div>
             )}
         </div>

@@ -65,6 +65,7 @@ alter table public.last_locations enable row level security;
 alter table public.interests enable row level security;
 alter table public.user_interests enable row level security;
 alter table public.notifications enable row level security;
+alter table public.messages enable row level security;
 alter table public.community_alerts enable row level security;
 -- spatial_ref_sys is owned by extensions; skip in user-run SQL editor sessions.
 
@@ -223,6 +224,24 @@ create policy "notifications_insert_self"
 on public.notifications
 for insert
 with check (auth.uid() = user_id);
+
+drop policy if exists "messages_select_participants" on public.messages;
+create policy "messages_select_participants"
+on public.messages
+for select
+using (
+  (auth.uid() = sender_id or auth.uid() = recipient_id)
+  and public.is_friend(sender_id, recipient_id)
+);
+
+drop policy if exists "messages_insert_sender" on public.messages;
+create policy "messages_insert_sender"
+on public.messages
+for insert
+with check (
+  auth.uid() = sender_id
+  and public.is_friend(sender_id, recipient_id)
+);
 
 drop policy if exists "community_alerts_select_active" on public.community_alerts;
 create policy "community_alerts_select_active"

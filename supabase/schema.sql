@@ -114,6 +114,15 @@ create table if not exists notifications (
   delivered_at timestamptz
 );
 
+create table if not exists messages (
+  id uuid primary key default gen_random_uuid(),
+  sender_id uuid not null references profiles on delete cascade,
+  recipient_id uuid not null references profiles on delete cascade,
+  body text not null,
+  created_at timestamptz not null default now(),
+  check (sender_id <> recipient_id)
+);
+
 create table if not exists community_alerts (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references profiles on delete cascade,
@@ -145,6 +154,12 @@ create index if not exists last_locations_geom_idx
 
 create index if not exists friendships_user_status_idx
   on friendships (user_id, status);
+
+create index if not exists messages_sender_recipient_time_idx
+  on messages (sender_id, recipient_id, created_at desc);
+
+create index if not exists messages_recipient_sender_time_idx
+  on messages (recipient_id, sender_id, created_at desc);
 
 create index if not exists community_alerts_geom_idx
   on community_alerts using gist (geom);

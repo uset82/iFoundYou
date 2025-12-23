@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import MultipeerManager from '../../lib/mesh/multipeer';
+import { hasSupabaseConfig, supabase } from '../../lib/supabase';
 import type { ChatMessage, Peer } from '../../lib/mesh/types';
 import './ChatWindow.css';
 
@@ -8,29 +9,35 @@ interface ChatWindowProps {
     userName: string;
     recipientId: string;
     recipientName: string;
+    mode: 'native' | 'web';
 }
 
 const ChatWindow: React.FC<ChatWindowProps> = ({
     userId,
     userName,
     recipientId,
-    recipientName
+    recipientName,
+    mode
 }) => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [inputText, setInputText] = useState('');
     const [connectedPeers, setConnectedPeers] = useState<Peer[]>([]);
+    const [sendError, setSendError] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const multipeerRef = useRef<MultipeerManager | null>(null);
 
     useEffect(() => {
-        // Initialize Multipeer
+        if (mode !== 'native') {
+            return undefined;
+        }
         const multipeer = new MultipeerManager(userId, userName);
         multipeerRef.current = multipeer;
 
-        // Listen for incoming messages
         multipeer.onMessage((meshMessage) => {
-            if (meshMessage.type === 'text' &&
-                (meshMessage.sender === recipientId || meshMessage.recipient === userId)) {
+            if (
+                meshMessage.type === 'text' &&
+                (meshMessage.sender === recipientId || meshMessage.recipient === userId)
+            ) {
                 const chatMsg: ChatMessage = {
                     id: meshMessage.id,
                     senderId: meshMessage.sender,
@@ -42,11 +49,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
                     hopCount: 10 - meshMessage.ttl
                 };
 
-                setMessages(prev => [...prev, chatMsg]);
+                setMessages((prev) => [...prev, chatMsg]);
             }
         });
 
-        // Listen for peer changes
         multipeer.onPeerChange((_peer) => {
             setConnectedPeers(multipeer.getConnectedPeers());
         });
@@ -54,42 +60,197 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
         return () => {
             multipeer.disconnect();
         };
-    }, [userId, userName, recipientId, recipientName]);
+    }, [mode, userId, userName, recipientId, recipientName]);
 
     useEffect(() => {
-        // Auto-scroll to bottom
+        if (mode !== 'web') {
+            return undefined;
+        }
+        if (!hasSupabaseConfig) {
+            setSendError('Supabase config missing.');
+            return undefined;
+        }
+
+        let isCancelled = false;
+        setMessages([]);
+
+        const mapMessages = (rows: any[]) =>
+            rows.map((row) => ({
+                id: row.id,
+                senderId: row.sender_id,
+                senderName: row.sender_id === userId ? userName : recipientName,
+                recipientId: row.recipient_id,
+                content: row.body,
+                timestamp: new Date(row.created_at).getTime(),
+                delivered: true,
+                hopCount: 0
+            }));
+
+        const loadMessages = async () => {
+            const { data, error } = await supabase
+                .from('messages')
+                .select('id, sender_id, recipient_id, body, created_at')
+                .or(
+                    `and(sender_id.eq.${userId},recipient_id.eq.${recipientId}),and(sender_id.eq.${recipientId},recipient_id.eq.${userId})`
+                )
+                .order('created_at', { ascending: true });
+
+            if (error || !data || isCancelled) {
+                if (error && !isCancelled) {
+                    setSendError(error.message);
+                }
+                return;
+            }
+            setMessages(mapMessages(data));
+            setSendError(null);
+        };
+
+        void loadMessages();
+        const pollId = window.setInterval(loadMessages, 5000);
+
+        const handleInsert = (payload: any) => {
+            const row = payload.new;
+            if (!row || isCancelled) {
+                return;
+            }
+            const isThreadMatch =
+                (row.sender_id === userId && row.recipient_id === recipientId) ||
+                (row.sender_id === recipientId && row.recipient_id === userId);
+            if (!isThreadMatch) {
+                return;
+            }
+            setMessages((prev) => {
+                if (prev.some((msg) => msg.id === row.id)) {
+                    return prev;
+                }
+                return [
+                    ...prev,
+                    {
+                        id: row.id,
+                        senderId: row.sender_id,
+                        senderName: row.sender_id === userId ? userName : recipientName,
+                        recipientId: row.recipient_id,
+                        content: row.body,
+                        timestamp: new Date(row.created_at).getTime(),
+                        delivered: true,
+                        hopCount: 0
+                    }
+                ];
+            });
+        };
+
+        const senderChannel = supabase
+            .channel(`messages-sender-${userId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'messages',
+                    filter: `sender_id=eq.${userId}`
+                },
+                handleInsert
+            )
+            .subscribe();
+
+        const recipientChannel = supabase
+            .channel(`messages-recipient-${userId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'messages',
+                    filter: `recipient_id=eq.${userId}`
+                },
+                handleInsert
+            )
+            .subscribe();
+
+        return () => {
+            isCancelled = true;
+            window.clearInterval(pollId);
+            supabase.removeChannel(senderChannel);
+            supabase.removeChannel(recipientChannel);
+        };
+    }, [mode, recipientId, recipientName, userId, userName]);
+
+    useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    const handleSend = () => {
-        if (!inputText.trim() || !multipeerRef.current) return;
+    const handleSend = async () => {
+        if (!inputText.trim()) {
+            return;
+        }
 
-        const messageId = multipeerRef.current.sendMessage(
-            recipientId,
-            'text',
-            inputText
-        );
+        if (mode === 'native') {
+            if (!multipeerRef.current) {
+                return;
+            }
+            const messageId = multipeerRef.current.sendMessage(
+                recipientId,
+                'text',
+                inputText
+            );
 
-        // Add to local messages
-        const chatMsg: ChatMessage = {
-            id: messageId,
-            senderId: userId,
-            senderName: userName,
-            recipientId,
-            content: inputText,
-            timestamp: Date.now(),
-            delivered: false,
-            hopCount: 0
-        };
+            const chatMsg: ChatMessage = {
+                id: messageId,
+                senderId: userId,
+                senderName: userName,
+                recipientId,
+                content: inputText,
+                timestamp: Date.now(),
+                delivered: false,
+                hopCount: 0
+            };
 
-        setMessages(prev => [...prev, chatMsg]);
+            setMessages((prev) => [...prev, chatMsg]);
+            setInputText('');
+            return;
+        }
+
+        if (!hasSupabaseConfig) {
+            setSendError('Supabase config missing.');
+            return;
+        }
+
+        setSendError(null);
+        const { data, error } = await supabase
+            .from('messages')
+            .insert({
+                sender_id: userId,
+                recipient_id: recipientId,
+                body: inputText
+            })
+            .select('id, sender_id, recipient_id, body, created_at')
+            .single();
+
+        if (error || !data) {
+            setSendError(error?.message ?? 'Unable to send message.');
+            return;
+        }
+
+        setMessages((prev) => [
+            ...prev,
+            {
+                id: data.id,
+                senderId: data.sender_id,
+                senderName: userName,
+                recipientId: data.recipient_id,
+                content: data.body,
+                timestamp: new Date(data.created_at).getTime(),
+                delivered: true,
+                hopCount: 0
+            }
+        ]);
         setInputText('');
     };
 
     const handleKeyPress = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            handleSend();
+            void handleSend();
         }
     };
 
@@ -98,7 +259,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
             <div className="chat-header">
                 <h2>{recipientName}</h2>
                 <div className="peer-status">
-                    {connectedPeers.length} peer{connectedPeers.length !== 1 ? 's' : ''} connected
+                    {mode === 'native'
+                        ? `${connectedPeers.length} peer${connectedPeers.length !== 1 ? 's' : ''} connected`
+                        : 'Online chat'}
                 </div>
             </div>
 
@@ -116,10 +279,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
                                 </span>
                                 {msg.senderId === userId && (
                                     <span className="message-status">
-                                        {msg.delivered ? '✓✓' : '✓'}
+                                        {msg.delivered ? 'Delivered' : 'Sent'}
                                     </span>
                                 )}
-                                {msg.hopCount > 0 && (
+                                {mode === 'native' && msg.hopCount > 0 && (
                                     <span className="hop-count">
                                         {msg.hopCount} hop{msg.hopCount > 1 ? 's' : ''}
                                     </span>
@@ -139,10 +302,11 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
                     placeholder="Type a message..."
                     rows={2}
                 />
-                <button onClick={handleSend} disabled={!inputText.trim()}>
+                <button onClick={() => void handleSend()} disabled={!inputText.trim()}>
                     Send
                 </button>
             </div>
+            {sendError && <p className="error">{sendError}</p>}
         </div>
     );
 };

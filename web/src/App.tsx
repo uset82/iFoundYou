@@ -1315,6 +1315,11 @@ export default function App() {
           <EmergencyChat
             userId={session?.user?.id ?? 'anon-' + Math.random().toString(36).substr(2, 9)}
             userName={session?.user?.email?.split('@')[0] ?? 'Anonymous'}
+            isAuthed={isAuthed}
+            friends={friends.map((friend) => ({
+              id: friend.id,
+              name: friend.name,
+            }))}
             onClose={() => setView('map')}
           />
         )}
