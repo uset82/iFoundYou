@@ -17,5 +17,6 @@ mcp/.env.*
 client_secret_*.json
 mcp-server.log
 mcp-server.err.log
+supabase/image/rls/
 !mobile/.env.example
 mcp-server/
