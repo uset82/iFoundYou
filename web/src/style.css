@@ -370,11 +370,9 @@ button:focus-visible {
 
 .field select {
   appearance: none;
-  background-image: linear-gradient(
-      45deg,
+  background-image: linear-gradient(45deg,
       transparent 50%,
-      rgba(255, 255, 255, 0.5) 50%
-    ),
+      rgba(255, 255, 255, 0.5) 50%),
     linear-gradient(135deg, rgba(255, 255, 255, 0.5) 50%, transparent 50%);
   background-position: calc(100% - 18px) calc(50% - 4px),
     calc(100% - 12px) calc(50% - 4px);
@@ -653,10 +651,12 @@ button:focus-visible {
     transform: scale(0.6);
     opacity: 0.7;
   }
+
   70% {
     transform: scale(1.6);
     opacity: 0;
   }
+
   100% {
     transform: scale(1.6);
     opacity: 0;
@@ -789,7 +789,7 @@ button:focus-visible {
   .share-buttons {
     flex-direction: column;
   }
-  
+
   .share-buttons button {
     width: 100%;
   }

@@ -15,5 +15,7 @@ mcp/.env.*
 .env
 .env.*
 client_secret_*.json
+mcp-server.log
+mcp-server.err.log
 !mobile/.env.example
 mcp-server/

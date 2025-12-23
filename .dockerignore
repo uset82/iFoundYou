@@ -1,0 +1,14 @@
+.git
+node_modules
+dist
+web/
+mobile/
+supabase/
+docs/
+netlify/
+.env
+.env.*
+*.log
+mcp/node_modules
+mcp/.env
+mcp/.env.*

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import maplibregl, { Marker } from 'maplibre-gl';
 import { hasSupabaseConfig, supabase } from './lib/supabase';
+import EmergencyChat from './components/EmergencyChat/EmergencyChat';
 
 type PositionState = {
   lat: number;
@@ -136,7 +137,10 @@ export default function App() {
 
   const lastDiscoveryFetchRef = useRef<number>(0);
 
-  const [view, setView] = useState<'map' | 'friends' | 'alerts' | 'discover' | 'settings'>('map');
+  const [view, setView] = useState<
+    'map' | 'friends' | 'alerts' | 'discover' | 'settings' | 'emergency'
+  >('map');
+  const railView = view === 'map' ? 'friends' : view;
 
   const [sharing, setSharing] = useState(false);
   const [position, setPosition] = useState<PositionState | null>(null);
@@ -1072,6 +1076,58 @@ export default function App() {
     void sendLocationUpdate();
   }, [position, session, sharing]);
 
+  const authCard = !isAuthed ? (
+    <div className="card auth-card">
+      <p className="muted">Sign in to share location and invite friends.</p>
+      <label>
+        Email
+        <input
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          placeholder="you@example.com"
+          disabled={!hasSupabaseConfig}
+        />
+      </label>
+      <label>
+        Password
+        <input
+          type="password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          placeholder="password"
+          disabled={!hasSupabaseConfig}
+        />
+      </label>
+      <div className="auth-actions">
+        <button
+          className="primary"
+          onClick={signIn}
+          disabled={authBusy || !hasSupabaseConfig}
+        >
+          Sign in
+        </button>
+        <button
+          className="ghost"
+          onClick={signUp}
+          disabled={authBusy || !hasSupabaseConfig}
+        >
+          Create account
+        </button>
+        <button
+          className="google"
+          onClick={signInWithGoogle}
+          disabled={authBusy || !hasSupabaseConfig}
+        >
+          Continue with Google
+        </button>
+      </div>
+      {!hasSupabaseConfig && (
+        <p className="error">Supabase env vars are missing.</p>
+      )}
+      {authError && <p className="error">{authError}</p>}
+    </div>
+  ) : null;
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -1129,6 +1185,13 @@ export default function App() {
             onClick={() => setView('settings')}
           >
             Settings
+          </button>
+          <button
+            type="button"
+            className={`nav-item ${view === 'emergency' ? 'is-active' : ''}`}
+            onClick={() => setView('emergency')}
+          >
+            Mesh Network
           </button>
         </nav>
         <div className="share-card">
@@ -1216,455 +1279,421 @@ export default function App() {
       </aside>
 
       <main className="main">
-        {view === 'map' && (
-          <>
-            <section className="map-panel">
-              <div className="map" ref={mapContainerRef} />
-            </section>
-            <section className="tile-grid">
-              <div className="tile">
-                <h3>Nearby now</h3>
-                {(serverNearby ?? nearbyFriends).length === 0 ? (
-                  <p className="muted">No friends within {ALERT_RADIUS_METERS}m.</p>
-                ) : (
-                  <ul>
-                    {(serverNearby ?? nearbyFriends).map((friend) => (
-                      <li key={friend.id}>
-                        {friend.name}
-                        {friend.distance_m !== undefined && (
-                          <span className="distance">
-                            {Math.round(friend.distance_m)}m
-                          </span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <p className="muted nearby-source">
-                  Source: {serverNearby ? 'Server' : 'Local'}
-                </p>
-              </div>
-            </section>
-          </>
+        {view !== 'emergency' && (
+          <section className="map-panel">
+            <div className="map" ref={mapContainerRef} />
+          </section>
         )}
-
-        {view === 'friends' && (
-          <div className="rail">
-            <div className="rail-header">
-              <h2>Friends</h2>
-              <p className="muted">Invite, manage, and share with your circle.</p>
-            </div>
-
-            {isAuthed && (
-              <div className="card invite-card">
-                <div className="share-buttons">
-                  <div className="share-copy">
-                    <h3>Invite friends</h3>
-                    <p className="muted">
-                      Share iFoundYou with contacts on Apple, Google, Facebook, or
-                      Instagram.
-                    </p>
-                  </div>
-                  <button
-                    className="primary"
-                    onClick={() => shareApp('apple')}
-                  >
-                    Share with Apple
-                  </button>
-                  <button
-                    className="primary"
-                    onClick={() => shareApp('google')}
-                  >
-                    Share with Google
-                  </button>
-                  <button
-                    className="ghost"
-                    onClick={() => shareApp('facebook')}
-                  >
-                    Share on Facebook
-                  </button>
-                  <button
-                    className="ghost"
-                    onClick={() => shareApp('instagram')}
-                  >
-                    Share on Instagram
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {pendingIncoming.length > 0 && (
-              <div className="card pending-list">
-                <h3>Incoming requests</h3>
-                {pendingIncoming.map((req) => (
-                  <div key={req.id} className="request-row">
-                    <span>{req.user_id}</span>
-                    <div className="request-actions">
-                      <button
-                        className="primary"
-                        onClick={() => respondToRequest(req.id, 'accepted')}
-                        disabled={friendBusy}
-                      >
-                        Accept
-                      </button>
-                      <button
-                        className="ghost"
-                        onClick={() => respondToRequest(req.id, 'blocked')}
-                        disabled={friendBusy}
-                      >
-                        Decline
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {pendingOutgoing.length > 0 && (
-              <div className="card pending-list">
-                <h3>Outgoing requests</h3>
-                {pendingOutgoing.map((req) => (
-                  <div key={req.id} className="request-row">
-                    <span>{req.friend_id}</span>
-                    <span className="muted">Pending</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="card friend-list">
-              {friends.length === 0 && (
-                <div className="friend-card empty">
-                  <div>
-                    <strong>No friends yet</strong>
-                    <span>Share the app to start connecting.</span>
-                  </div>
-                </div>
-              )}
-              {friends.map((friend) => (
-                <div key={friend.id} className="friend-card">
-                  <div>
-                    <strong>{friend.name}</strong>
-                    <span>
-                      {friend.updatedAt
-                        ? `Updated ${new Date(friend.updatedAt).toLocaleTimeString()}`
-                        : 'No location yet'}
-                    </span>
-                  </div>
-                  <button className="ghost" disabled>
-                    Ping
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {view === 'alerts' && (
-          <div className="rail">
-            <div className="rail-header">
-              <h2>Alerts</h2>
-              <p className="muted">Emergency broadcasts and proximity notifications.</p>
-            </div>
-
-            {isAuthed && (
-              <div className="card emergency-card">
-                <h3>Emergency broadcast</h3>
-                <p className="muted">Send a short alert to people nearby.</p>
-                <label className="field">
-                  Category
-                  <select
-                    value={alertCategory}
-                    onChange={(event) => setAlertCategory(event.target.value)}
-                  >
-                    {COMMUNITY_ALERT_CATEGORIES.map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field">
-                  Message
-                  <textarea
-                    value={alertMessage}
-                    onChange={(event) => setAlertMessage(event.target.value)}
-                    rows={3}
-                    maxLength={COMMUNITY_ALERT_MESSAGE_MAX}
-                    placeholder="Need water near 3rd Ave. Family with kids."
-                  />
-                </label>
-                <div className="form-row">
-                  <label className="field">
-                    Radius (km)
-                    <input
-                      type="number"
-                      min="0.2"
-                      max="10"
-                      step="0.1"
-                      value={alertRadiusKm}
-                      onChange={(event) => {
-                        const nextValue = Number(event.target.value);
-                        setAlertRadiusKm(Number.isFinite(nextValue) ? nextValue : 2);
-                      }}
-                    />
-                  </label>
-                  <label className="field">
-                    Duration
-                    <select
-                      value={alertDurationMinutes}
-                      onChange={(event) =>
-                        setAlertDurationMinutes(Number(event.target.value))
-                      }
-                    >
-                      {COMMUNITY_ALERT_DURATIONS.map((item) => (
-                        <option key={item.value} value={item.value}>
-                          {item.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-                <button
-                  className="primary"
-                  onClick={sendCommunityAlert}
-                  disabled={communityAlertBusy || !position}
-                >
-                  Send alert
-                </button>
-                {communityAlertError && (
-                  <p className="error">{communityAlertError}</p>
-                )}
-              </div>
-            )}
-
+        {view !== 'emergency' && (
+          <section className="tile-grid">
             <div className="tile">
-              <h3>Community alerts</h3>
-              {communityAlerts.length === 0 ? (
-                <p className="muted">No alerts nearby.</p>
+              <h3>Nearby now</h3>
+              {(serverNearby ?? nearbyFriends).length === 0 ? (
+                <p className="muted">No friends within {ALERT_RADIUS_METERS}m.</p>
               ) : (
                 <ul>
-                  {communityAlerts.map((alert) => {
-                    const distanceLabel = formatDistance(alert.distance_m);
-                    const categoryLabel =
-                      COMMUNITY_ALERT_CATEGORIES.find(
-                        (item) => item.value === alert.category
-                      )?.label ?? 'Other';
-                    return (
-                      <li key={alert.id} className="alert-row">
-                        <span className={`tag tag-${alert.category}`}>
-                          {categoryLabel}
-                        </span>
-                        <div className="alert-body">
-                          <strong>{alert.message}</strong>
-                          <span className="distance">
-                            {distanceLabel ? `${distanceLabel} · ` : ''}
-                            {new Date(alert.created_at).toLocaleTimeString()}
-                          </span>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-              {communityAlertsError && (
-                <p className="error">{communityAlertsError}</p>
-              )}
-            </div>
-
-            <div className="tile">
-              <h3>Proximity alerts</h3>
-              {notifications.length === 0 ? (
-                <p className="muted">No alerts yet.</p>
-              ) : (
-                <ul>
-                  {notifications.map((item) => (
-                    <li key={item.id}>
-                      {describeNotification(item)}
-                      <span className="distance">
-                        {new Date(item.created_at).toLocaleTimeString()}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {notificationsError && <p className="error">{notificationsError}</p>}
-            </div>
-          </div>
-        )}
-
-        {view === 'discover' && (
-          <div className="rail">
-            <div className="rail-header">
-              <h2>Discover</h2>
-              <p className="muted">Find people nearby who are open to connecting.</p>
-            </div>
-
-            {isAuthed && (
-              <div className="card discover-card">
-                <div>
-                  <strong>Discovery Mode</strong>
-                  <span>
-                    {discoverable
-                      ? 'You are visible to nearby people.'
-                      : 'You are hidden from discovery.'}
-                  </span>
-                </div>
-                <button
-                  className="ghost"
-                  onClick={toggleDiscoverable}
-                  disabled={discoverBusy}
-                >
-                  {discoverable ? 'Disable' : 'Enable'}
-                </button>
-                {discoverError && <p className="error">{discoverError}</p>}
-              </div>
-            )}
-
-            <div className="tile">
-              <h3>People nearby</h3>
-              {discoveredPeople.length === 0 ? (
-                <p className="muted">No discoverable people within 1000m.</p>
-              ) : (
-                <ul>
-                  {discoveredPeople.map((person) => (
-                    <li key={person.id}>
-                      {person.name}
-                      {person.distance_m !== undefined && (
+                  {(serverNearby ?? nearbyFriends).map((friend) => (
+                    <li key={friend.id}>
+                      {friend.name}
+                      {friend.distance_m !== undefined && (
                         <span className="distance">
-                          {Math.round(person.distance_m)}m
+                          {Math.round(friend.distance_m)}m
                         </span>
                       )}
                     </li>
                   ))}
                 </ul>
               )}
+              <p className="muted nearby-source">
+                Source: {serverNearby ? 'Server' : 'Local'}
+              </p>
             </div>
-          </div>
+          </section>
         )}
 
-        {view === 'settings' && (
-          <div className="rail">
-            <div className="rail-header">
-              <h2>Settings</h2>
-              <p className="muted">Manage your account and preferences.</p>
-            </div>
-
-            {!isAuthed && (
-              <div className="card auth-card">
-                <p className="muted">Sign in to share location and invite friends.</p>
-                <label>
-                  Email
-                  <input
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    placeholder="you@example.com"
-                    disabled={!hasSupabaseConfig}
-                  />
-                </label>
-                <label>
-                  Password
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    placeholder="password"
-                    disabled={!hasSupabaseConfig}
-                  />
-                </label>
-                <div className="auth-actions">
-                  <button
-                    className="primary"
-                    onClick={signIn}
-                    disabled={authBusy || !hasSupabaseConfig}
-                  >
-                    Sign in
-                  </button>
-                  <button
-                    className="ghost"
-                    onClick={signUp}
-                    disabled={authBusy || !hasSupabaseConfig}
-                  >
-                    Create account
-                  </button>
-                  <button
-                    className="google"
-                    onClick={signInWithGoogle}
-                    disabled={authBusy || !hasSupabaseConfig}
-                  >
-                    Continue with Google
-                  </button>
-                </div>
-                {!hasSupabaseConfig && (
-                  <p className="error">Supabase env vars are missing.</p>
-                )}
-                {authError && <p className="error">{authError}</p>}
-              </div>
-            )}
-
-            {isAuthed && (
-              <div className="card profile-card">
-                <div>
-                  <strong>{session?.user.email}</strong>
-                  <span>Signed in</span>
-                </div>
-                <button className="ghost" onClick={signOut}>
-                  Sign out
-                </button>
-              </div>
-            )}
-
-            {isAuthed && (
-              <div className="card contact-settings">
-                <h3>Contact invites</h3>
-                <p className="muted">
-                  Let people you know find you by email or phone.
-                </p>
-                <label className="toggle-row">
-                  <input
-                    type="checkbox"
-                    checked={contactEmailEnabled}
-                    onChange={toggleContactEmail}
-                    disabled={contactSettingsBusy || !session?.user?.email}
-                  />
-                  <span>
-                    Allow requests by email
-                    {session?.user?.email ? ` (${session.user.email})` : ''}
-                  </span>
-                </label>
-                <label className="field">
-                  Phone number
-                  <input
-                    value={contactPhoneInput}
-                    onChange={(event) => {
-                      setContactPhoneInput(event.target.value);
-                      setContactSettingsError(null);
-                    }}
-                    placeholder="+1 415 555 0199"
-                  />
-                </label>
-                <div className="contact-actions">
-                  <button
-                    className="primary"
-                    onClick={saveContactPhone}
-                    disabled={contactSettingsBusy}
-                  >
-                    Save phone
-                  </button>
-                </div>
-                {contactSettingsError && (
-                  <p className="error">{contactSettingsError}</p>
-                )}
-              </div>
-            )}
-
-            <div className="card callout">
-              <h3>Status</h3>
-              <p>v0.1.0 Prototype</p>
-            </div>
-          </div>
+        {view === 'emergency' && (
+          <EmergencyChat
+            userId={session?.user?.id ?? 'anon-' + Math.random().toString(36).substr(2, 9)}
+            userName={session?.user?.email?.split('@')[0] ?? 'Anonymous'}
+            onClose={() => setView('map')}
+          />
         )}
       </main>
+      {view !== 'emergency' && (
+        <aside className="rail">
+          {railView === 'friends' && (
+            <>
+              <div className="rail-header">
+                <h2>Friends</h2>
+                <p className="muted">Invite, manage, and share with your circle.</p>
+              </div>
+
+              {authCard}
+
+              {isAuthed && (
+                <div className="card invite-card">
+                  <div className="share-buttons">
+                    <div className="share-copy">
+                      <h3>Invite friends</h3>
+                      <p className="muted">
+                        Share iFoundYou with contacts on Apple, Google, Facebook, or
+                        Instagram.
+                      </p>
+                    </div>
+                    <button
+                      className="primary"
+                      onClick={() => shareApp('apple')}
+                    >
+                      Share with Apple
+                    </button>
+                    <button
+                      className="primary"
+                      onClick={() => shareApp('google')}
+                    >
+                      Share with Google
+                    </button>
+                    <button
+                      className="ghost"
+                      onClick={() => shareApp('facebook')}
+                    >
+                      Share on Facebook
+                    </button>
+                    <button
+                      className="ghost"
+                      onClick={() => shareApp('instagram')}
+                    >
+                      Share on Instagram
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {pendingIncoming.length > 0 && (
+                <div className="card pending-list">
+                  <h3>Incoming requests</h3>
+                  {pendingIncoming.map((req) => (
+                    <div key={req.id} className="request-row">
+                      <span>{req.user_id}</span>
+                      <div className="request-actions">
+                        <button
+                          className="primary"
+                          onClick={() => respondToRequest(req.id, 'accepted')}
+                          disabled={friendBusy}
+                        >
+                          Accept
+                        </button>
+                        <button
+                          className="ghost"
+                          onClick={() => respondToRequest(req.id, 'blocked')}
+                          disabled={friendBusy}
+                        >
+                          Decline
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {pendingOutgoing.length > 0 && (
+                <div className="card pending-list">
+                  <h3>Outgoing requests</h3>
+                  {pendingOutgoing.map((req) => (
+                    <div key={req.id} className="request-row">
+                      <span>{req.friend_id}</span>
+                      <span className="muted">Pending</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="card friend-list">
+                {friends.length === 0 && (
+                  <div className="friend-card empty">
+                    <div>
+                      <strong>No friends yet</strong>
+                      <span>Share the app to start connecting.</span>
+                    </div>
+                  </div>
+                )}
+                {friends.map((friend) => (
+                  <div key={friend.id} className="friend-card">
+                    <div>
+                      <strong>{friend.name}</strong>
+                      <span>
+                        {friend.updatedAt
+                          ? `Updated ${new Date(friend.updatedAt).toLocaleTimeString()}`
+                          : 'No location yet'}
+                      </span>
+                    </div>
+                    <button className="ghost" disabled>
+                      Ping
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="card callout">
+                <h3>Next step</h3>
+                <p className="muted">
+                  Add server-side proximity alerts and web push subscriptions.
+                </p>
+              </div>
+            </>
+          )}
+
+          {railView === 'alerts' && (
+            <>
+              <div className="rail-header">
+                <h2>Alerts</h2>
+                <p className="muted">Emergency broadcasts and proximity notifications.</p>
+              </div>
+
+              {isAuthed && (
+                <div className="card emergency-card">
+                  <h3>Emergency broadcast</h3>
+                  <p className="muted">Send a short alert to people nearby.</p>
+                  <label className="field">
+                    Category
+                    <select
+                      value={alertCategory}
+                      onChange={(event) => setAlertCategory(event.target.value)}
+                    >
+                      {COMMUNITY_ALERT_CATEGORIES.map((item) => (
+                        <option key={item.value} value={item.value}>
+                          {item.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    Message
+                    <textarea
+                      value={alertMessage}
+                      onChange={(event) => setAlertMessage(event.target.value)}
+                      rows={3}
+                      maxLength={COMMUNITY_ALERT_MESSAGE_MAX}
+                      placeholder="Need water near 3rd Ave. Family with kids."
+                    />
+                  </label>
+                  <div className="form-row">
+                    <label className="field">
+                      Radius (km)
+                      <input
+                        type="number"
+                        min="0.2"
+                        max="10"
+                        step="0.1"
+                        value={alertRadiusKm}
+                        onChange={(event) => {
+                          const nextValue = Number(event.target.value);
+                          setAlertRadiusKm(Number.isFinite(nextValue) ? nextValue : 2);
+                        }}
+                      />
+                    </label>
+                    <label className="field">
+                      Duration
+                      <select
+                        value={alertDurationMinutes}
+                        onChange={(event) =>
+                          setAlertDurationMinutes(Number(event.target.value))
+                        }
+                      >
+                        {COMMUNITY_ALERT_DURATIONS.map((item) => (
+                          <option key={item.value} value={item.value}>
+                            {item.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <button
+                    className="primary"
+                    onClick={sendCommunityAlert}
+                    disabled={communityAlertBusy || !position}
+                  >
+                    Send alert
+                  </button>
+                  {communityAlertError && (
+                    <p className="error">{communityAlertError}</p>
+                  )}
+                </div>
+              )}
+
+              <div className="tile">
+                <h3>Community alerts</h3>
+                {communityAlerts.length === 0 ? (
+                  <p className="muted">No alerts nearby.</p>
+                ) : (
+                  <ul>
+                    {communityAlerts.map((alert) => {
+                      const distanceLabel = formatDistance(alert.distance_m);
+                      const categoryLabel =
+                        COMMUNITY_ALERT_CATEGORIES.find(
+                          (item) => item.value === alert.category
+                        )?.label ?? 'Other';
+                      return (
+                        <li key={alert.id} className="alert-row">
+                          <span className={`tag tag-${alert.category}`}>
+                            {categoryLabel}
+                          </span>
+                          <div className="alert-body">
+                            <strong>{alert.message}</strong>
+                            <span className="distance">
+                              {distanceLabel ? `${distanceLabel} - ` : ''}
+                              {new Date(alert.created_at).toLocaleTimeString()}
+                            </span>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                {communityAlertsError && (
+                  <p className="error">{communityAlertsError}</p>
+                )}
+              </div>
+
+              <div className="tile">
+                <h3>Proximity alerts</h3>
+                {notifications.length === 0 ? (
+                  <p className="muted">No alerts yet.</p>
+                ) : (
+                  <ul>
+                    {notifications.map((item) => (
+                      <li key={item.id}>
+                        {describeNotification(item)}
+                        <span className="distance">
+                          {new Date(item.created_at).toLocaleTimeString()}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {notificationsError && <p className="error">{notificationsError}</p>}
+              </div>
+            </>
+          )}
+
+          {railView === 'discover' && (
+            <>
+              <div className="rail-header">
+                <h2>Discover</h2>
+                <p className="muted">Find people nearby who are open to connecting.</p>
+              </div>
+
+              {isAuthed && (
+                <div className="card discover-card">
+                  <div>
+                    <strong>Discovery Mode</strong>
+                    <span>
+                      {discoverable
+                        ? 'You are visible to nearby people.'
+                        : 'You are hidden from discovery.'}
+                    </span>
+                  </div>
+                  <button
+                    className="ghost"
+                    onClick={toggleDiscoverable}
+                    disabled={discoverBusy}
+                  >
+                    {discoverable ? 'Disable' : 'Enable'}
+                  </button>
+                  {discoverError && <p className="error">{discoverError}</p>}
+                </div>
+              )}
+
+              <div className="tile">
+                <h3>People nearby</h3>
+                {discoveredPeople.length === 0 ? (
+                  <p className="muted">No discoverable people within 1000m.</p>
+                ) : (
+                  <ul>
+                    {discoveredPeople.map((person) => (
+                      <li key={person.id}>
+                        {person.name}
+                        {person.distance_m !== undefined && (
+                          <span className="distance">
+                            {Math.round(person.distance_m)}m
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </>
+          )}
+
+          {railView === 'settings' && (
+            <>
+              <div className="rail-header">
+                <h2>Settings</h2>
+                <p className="muted">Manage your account and preferences.</p>
+              </div>
+
+              {authCard}
+
+              {isAuthed && (
+                <div className="card profile-card">
+                  <p>
+                    Signed in as <strong>{session?.user?.email}</strong>
+                  </p>
+                  <button className="ghost" onClick={signOut}>
+                    Sign out
+                  </button>
+                </div>
+              )}
+
+              {isAuthed && (
+                <div className="card settings-card">
+                  <h3>Contact info</h3>
+                  <p className="muted">
+                    How friends can find you. This is only visible to friends you accept.
+                  </p>
+                  <div className="setting-row">
+                    <label className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={contactEmailEnabled}
+                        onChange={toggleContactEmail}
+                        disabled={contactSettingsBusy}
+                      />
+                      Share email address
+                    </label>
+                  </div>
+                  <div className="setting-row">
+                    <label>
+                      Phone number
+                      <input
+                        value={contactPhoneInput}
+                        onChange={(e) => setContactPhoneInput(e.target.value)}
+                        placeholder="+15550000000"
+                        disabled={contactSettingsBusy}
+                      />
+                    </label>
+                    <button
+                      className="ghost small"
+                      onClick={saveContactPhone}
+                      disabled={contactSettingsBusy}
+                    >
+                      Save
+                    </button>
+                  </div>
+                  {contactSettingsError && (
+                    <p className="error">{contactSettingsError}</p>
+                  )}
+                </div>
+              )}
+
+              <div className="card debug-card">
+                <h3>Debug</h3>
+                <p className="muted">Build: {new Date().toISOString()}</p>
+              </div>
+            </>
+          )}
+        </aside>
+      )}
     </div>
   );
 }
