@@ -49,25 +49,27 @@
     font-weight: 600;
 }
 
-.mesh-banner {
+.mesh-unavailable {
+    flex: 1;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 12px 14px;
-    border-bottom: 1px solid var(--border);
-    background: rgba(245, 200, 75, 0.08);
-}
-
-.mesh-banner strong {
-    display: block;
-    font-size: 0.95rem;
-}
-
-.mesh-banner p {
-    margin: 4px 0 0;
+    justify-content: center;
+    gap: 8px;
+    padding: 24px;
+    text-align: center;
     color: var(--muted);
-    font-size: 0.85rem;
+}
+
+.mesh-unavailable h2 {
+    margin: 0;
+    font-size: 1.2rem;
+    color: var(--text);
+}
+
+.mesh-unavailable p {
+    margin: 0;
+    max-width: 420px;
 }
 
 .chat-layout {
@@ -117,8 +119,7 @@
         display: none;
     }
 
-    .mesh-banner {
-        flex-direction: column;
-        align-items: flex-start;
+    .mesh-unavailable {
+        padding: 20px 16px;
     }
 }
