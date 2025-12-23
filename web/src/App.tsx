@@ -172,7 +172,6 @@ export default function App() {
   const watchIdRef = useRef<number | null>(null);
   const lastSentRef = useRef<number>(0);
   const lastAlertRef = useRef<Map<string, number>>(new Map());
-  const lastServerFetchRef = useRef<number>(0);
 
   const lastDiscoveryFetchRef = useRef<number>(0);
 
@@ -214,8 +213,6 @@ export default function App() {
   const [mapSearchBusy, setMapSearchBusy] = useState(false);
   const [mapSearchError, setMapSearchError] = useState<string | null>(null);
   const [activeFriendId, setActiveFriendId] = useState<string | null>(null);
-  const [nearbyFriends, setNearbyFriends] = useState<NearbyFriend[]>([]);
-  const [serverNearby, setServerNearby] = useState<NearbyFriend[] | null>(null);
   const [discoverable, setDiscoverable] = useState(false);
   const [discoverBusy, setDiscoverBusy] = useState(false);
   const [discoverError, setDiscoverError] = useState<string | null>(null);
@@ -1172,7 +1169,6 @@ export default function App() {
 
   useEffect(() => {
     if (!position) {
-      setNearbyFriends([]);
       return;
     }
 
@@ -1188,8 +1184,6 @@ export default function App() {
       );
       return distance <= ALERT_RADIUS_METERS;
     });
-
-    setNearbyFriends(nearby);
 
     if (notificationPermission !== 'granted') {
       return;
@@ -1208,42 +1202,6 @@ export default function App() {
       });
     });
   }, [friends, notificationPermission, position]);
-
-  useEffect(() => {
-    if (!hasSupabaseConfig || !session?.access_token || !position) {
-      setServerNearby(null);
-      return;
-    }
-
-    const now = Date.now();
-    if (now - lastServerFetchRef.current < 20000) {
-      return;
-    }
-    lastServerFetchRef.current = now;
-
-    const fetchNearby = async () => {
-      try {
-        const response = await fetch(
-          `/.netlify/functions/nearby?radius_m=${ALERT_RADIUS_METERS}`,
-          {
-            headers: {
-              Authorization: `Bearer ${session.access_token}`,
-            },
-          }
-        );
-        if (!response.ok) {
-          setServerNearby(null);
-          return;
-        }
-        const payload = await response.json();
-        setServerNearby(payload.friends ?? null);
-      } catch {
-        setServerNearby(null);
-      }
-    };
-
-    void fetchNearby();
-  }, [position, session?.access_token]);
 
   useEffect(() => {
     if (!hasSupabaseConfig || !session?.access_token || !position) {
@@ -2141,45 +2099,43 @@ export default function App() {
           )}
         </aside>
       )}
-      {!isMeshView && (
-        <nav className="bottom-nav">
-          <button
-            type="button"
-            className={`nav-item ${view === 'map' ? 'is-active' : ''}`}
-            onClick={() => setView('map')}
-          >
-            Map
-          </button>
-          <button
-            type="button"
-            className={`nav-item ${view === 'friends' ? 'is-active' : ''}`}
-            onClick={() => setView('friends')}
-          >
-            Friends
-          </button>
-          <button
-            type="button"
-            className={`nav-item ${view === 'alerts' ? 'is-active' : ''}`}
-            onClick={() => setView('alerts')}
-          >
-            Alerts
-          </button>
-          <button
-            type="button"
-            className={`nav-item ${view === 'discover' ? 'is-active' : ''}`}
-            onClick={() => setView('discover')}
-          >
-            Discover
-          </button>
-          <button
-            type="button"
-            className={`nav-item ${view === 'mesh' ? 'is-active' : ''}`}
-            onClick={() => setView('mesh')}
-          >
-            Mesh
-          </button>
-        </nav>
-      )}
+      <nav className={`bottom-nav ${isMeshView ? 'is-hidden' : ''}`}>
+        <button
+          type="button"
+          className={`nav-item ${view === 'map' ? 'is-active' : ''}`}
+          onClick={() => setView('map')}
+        >
+          Map
+        </button>
+        <button
+          type="button"
+          className={`nav-item ${view === 'friends' ? 'is-active' : ''}`}
+          onClick={() => setView('friends')}
+        >
+          Friends
+        </button>
+        <button
+          type="button"
+          className={`nav-item ${view === 'alerts' ? 'is-active' : ''}`}
+          onClick={() => setView('alerts')}
+        >
+          Alerts
+        </button>
+        <button
+          type="button"
+          className={`nav-item ${view === 'discover' ? 'is-active' : ''}`}
+          onClick={() => setView('discover')}
+        >
+          Discover
+        </button>
+        <button
+          type="button"
+          className={`nav-item ${view === 'mesh' ? 'is-active' : ''}`}
+          onClick={() => setView('mesh')}
+        >
+          Mesh
+        </button>
+      </nav>
     </div>
   );
 }

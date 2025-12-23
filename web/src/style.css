@@ -893,6 +893,10 @@ button.small {
     display: flex;
   }
 
+  .bottom-nav.is-hidden {
+    display: none;
+  }
+
   .hidden-mobile {
     display: none;
   }
