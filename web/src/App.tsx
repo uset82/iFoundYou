@@ -27,6 +27,12 @@ type FriendRequest = {
   created_at: string;
 };
 
+type ContactMatch = {
+  id: string;
+  display_name: string | null;
+  match_type: string | null;
+};
+
 type NearbyFriend = FriendSummary & {
   distance_m?: number;
 };
@@ -125,6 +131,28 @@ const normalizeEmail = (value: string) => value.trim().toLowerCase();
 
 const normalizePhone = (value: string) => value.replace(/[^\d]/g, '');
 
+const extractContactValues = (value: string) => {
+  const emails = new Set<string>();
+  const phones = new Set<string>();
+
+  const emailMatches = value.matchAll(
+    /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi
+  );
+  for (const match of emailMatches) {
+    emails.add(normalizeEmail(match[0]));
+  }
+
+  const phoneMatches = value.matchAll(/(\+?\d[\d\s().-]{6,}\d)/g);
+  for (const match of phoneMatches) {
+    const normalized = normalizePhone(match[0]);
+    if (normalized.length >= 7) {
+      phones.add(normalized);
+    }
+  }
+
+  return { emails: Array.from(emails), phones: Array.from(phones) };
+};
+
 export default function App() {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -161,6 +189,14 @@ export default function App() {
   const [contactSettingsError, setContactSettingsError] = useState<string | null>(
     null
   );
+  const [contactPaste, setContactPaste] = useState('');
+  const [contactMatches, setContactMatches] = useState<ContactMatch[]>([]);
+  const [contactMatchBusy, setContactMatchBusy] = useState(false);
+  const [contactMatchError, setContactMatchError] = useState<string | null>(null);
+  const [contactMatchAttempted, setContactMatchAttempted] = useState(false);
+  const [contactRequestBusyId, setContactRequestBusyId] = useState<string | null>(
+    null
+  );
   const [nearbyFriends, setNearbyFriends] = useState<NearbyFriend[]>([]);
   const [serverNearby, setServerNearby] = useState<NearbyFriend[] | null>(null);
   const [discoverable, setDiscoverable] = useState(false);
@@ -188,6 +224,18 @@ export default function App() {
   const [alertDurationMinutes, setAlertDurationMinutes] = useState(240);
 
   const isAuthed = useMemo(() => Boolean(session?.user), [session]);
+  const friendIdSet = useMemo(
+    () => new Set(friends.map((friend) => friend.id)),
+    [friends]
+  );
+  const pendingOutgoingIdSet = useMemo(
+    () => new Set(pendingOutgoing.map((req) => req.friend_id)),
+    [pendingOutgoing]
+  );
+  const pendingIncomingIdSet = useMemo(
+    () => new Set(pendingIncoming.map((req) => req.user_id)),
+    [pendingIncoming]
+  );
 
   useEffect(() => {
     if (!hasSupabaseConfig) {
@@ -205,6 +253,27 @@ export default function App() {
       data.subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (!hasSupabaseConfig || !session?.user) {
+      return;
+    }
+    const displayName =
+      (session.user.user_metadata?.full_name as string | undefined) ??
+      (session.user.user_metadata?.name as string | undefined) ??
+      session.user.email?.split('@')[0] ??
+      'Friend';
+    const ensureProfile = async () => {
+      await supabase.from('profiles').upsert(
+        {
+          id: session.user.id,
+          display_name: displayName,
+        },
+        { onConflict: 'id', ignoreDuplicates: true }
+      );
+    };
+    void ensureProfile();
+  }, [session?.user]);
 
   useEffect(() => {
     if (typeof Notification === 'undefined') {
@@ -774,6 +843,61 @@ export default function App() {
     }
   };
 
+  const findContactMatches = async () => {
+    if (!session?.user) {
+      return;
+    }
+    if (!hasSupabaseConfig) {
+      setContactMatchError('Missing Supabase config.');
+      return;
+    }
+    const { emails, phones } = extractContactValues(contactPaste);
+    setContactMatchAttempted(true);
+    if (emails.length === 0 && phones.length === 0) {
+      setContactMatchError('Add at least one email or phone number.');
+      setContactMatches([]);
+      return;
+    }
+    setContactMatchBusy(true);
+    setContactMatchError(null);
+    const { data, error } = await supabase.rpc('match_contacts', {
+      emails,
+      phones,
+    });
+    if (error) {
+      setContactMatchError(error.message);
+      setContactMatches([]);
+    } else {
+      setContactMatches(data ?? []);
+    }
+    setContactMatchBusy(false);
+  };
+
+  const sendContactRequest = async (friendId: string) => {
+    if (!session?.user) {
+      return;
+    }
+    if (!hasSupabaseConfig) {
+      setContactMatchError('Missing Supabase config.');
+      return;
+    }
+    setContactRequestBusyId(friendId);
+    setContactMatchError(null);
+    const { error: requestError } = await supabase
+      .from('friendships')
+      .insert({
+        user_id: session.user.id,
+        friend_id: friendId,
+        status: 'pending',
+      });
+
+    if (requestError) {
+      setContactMatchError(requestError.message);
+    }
+    await refreshFriends();
+    setContactRequestBusyId(null);
+  };
+
   const toggleDiscoverable = async () => {
     if (!session?.user) {
       return;
@@ -1336,41 +1460,119 @@ export default function App() {
               {authCard}
 
               {isAuthed && (
-                <div className="card invite-card">
-                  <div className="share-buttons">
-                    <div className="share-copy">
-                      <h3>Invite friends</h3>
-                      <p className="muted">
-                        Share iFoundYou with contacts on Apple, Google, Facebook, or
-                        Instagram.
-                      </p>
+                <>
+                  <div className="card contact-card invite-card">
+                    <h3>Find friends from contacts</h3>
+                    <p className="muted">
+                      Paste emails or phone numbers. Friends must enable contact
+                      matching in Settings.
+                    </p>
+                    <label className="field">
+                      Paste email/phone contacts
+                      <textarea
+                        value={contactPaste}
+                        onChange={(event) => setContactPaste(event.target.value)}
+                        rows={3}
+                        placeholder="alex@example.com&#10;+1 415 555 0199"
+                      />
+                    </label>
+                    <div className="contact-actions">
+                      <button
+                        className="primary"
+                        onClick={findContactMatches}
+                        disabled={contactMatchBusy || !contactPaste.trim()}
+                      >
+                        {contactMatchBusy ? 'Searching...' : 'Find matches'}
+                      </button>
                     </div>
-                    <button
-                      className="primary"
-                      onClick={() => shareApp('apple')}
-                    >
-                      Share with Apple
-                    </button>
-                    <button
-                      className="primary"
-                      onClick={() => shareApp('google')}
-                    >
-                      Share with Google
-                    </button>
-                    <button
-                      className="ghost"
-                      onClick={() => shareApp('facebook')}
-                    >
-                      Share on Facebook
-                    </button>
-                    <button
-                      className="ghost"
-                      onClick={() => shareApp('instagram')}
-                    >
-                      Share on Instagram
-                    </button>
+                    {contactMatchError && (
+                      <p className="error">{contactMatchError}</p>
+                    )}
+                    <div className="share-buttons">
+                      <div className="share-copy">
+                        <h3>Invite friends</h3>
+                        <p className="muted">
+                          Share iFoundYou on Apple, Google, Facebook, or Instagram.
+                        </p>
+                      </div>
+                      <button
+                        className="primary"
+                        onClick={() => shareApp('apple')}
+                      >
+                        Share with Apple
+                      </button>
+                      <button
+                        className="primary"
+                        onClick={() => shareApp('google')}
+                      >
+                        Share with Google
+                      </button>
+                      <button
+                        className="ghost"
+                        onClick={() => shareApp('facebook')}
+                      >
+                        Share on Facebook
+                      </button>
+                      <button
+                        className="ghost"
+                        onClick={() => shareApp('instagram')}
+                      >
+                        Share on Instagram
+                      </button>
+                    </div>
                   </div>
-                </div>
+
+                  {contactMatchAttempted && (
+                    <div className="card contact-results">
+                      <h3>Matches</h3>
+                      {contactMatchBusy ? (
+                        <p className="muted">Searching...</p>
+                      ) : contactMatches.length === 0 ? (
+                        <p className="muted">No matches yet.</p>
+                      ) : (
+                        contactMatches.map((match) => {
+                          const isFriend = friendIdSet.has(match.id);
+                          const isOutgoing = pendingOutgoingIdSet.has(match.id);
+                          const isIncoming = pendingIncomingIdSet.has(match.id);
+                          const matchLabel =
+                            match.match_type === 'email'
+                              ? 'Email match'
+                              : match.match_type === 'phone'
+                                ? 'Phone match'
+                                : 'Match';
+
+                          return (
+                            <div key={match.id} className="request-row contact-row">
+                              <div className="contact-meta">
+                                <strong>{match.display_name ?? 'Friend'}</strong>
+                                <span className="muted">{matchLabel}</span>
+                              </div>
+                              <div className="contact-actions">
+                                {isFriend ? (
+                                  <span className="muted">Friends</span>
+                                ) : isOutgoing ? (
+                                  <span className="muted">Pending</span>
+                                ) : isIncoming ? (
+                                  <span className="muted">Incoming request</span>
+                                ) : (
+                                  <button
+                                    className="primary"
+                                    onClick={() => sendContactRequest(match.id)}
+                                    disabled={contactRequestBusyId === match.id}
+                                  >
+                                    {contactRequestBusyId === match.id
+                                      ? 'Sending...'
+                                      : 'Send request'}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+                </>
               )}
 
               {pendingIncoming.length > 0 && (
