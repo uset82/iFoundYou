@@ -43,17 +43,21 @@ body {
   padding: 28px 32px 48px;
 }
 
-.app-shell.emergency-mode {
+.app-shell.no-rail {
+  grid-template-columns: 240px minmax(0, 1fr);
+}
+
+.app-shell.mesh-mode {
   grid-template-columns: 1fr;
   padding: 24px;
 }
 
-.app-shell.emergency-mode .sidebar,
-.app-shell.emergency-mode .rail {
+.app-shell.mesh-mode .sidebar,
+.app-shell.mesh-mode .rail {
   display: none;
 }
 
-.app-shell.emergency-mode .main {
+.app-shell.mesh-mode .main {
   min-height: calc(100vh - 48px);
 }
 
@@ -173,6 +177,34 @@ body {
   background: var(--accent);
 }
 
+.bottom-nav {
+  display: none;
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  padding: 8px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: rgba(14, 15, 20, 0.92);
+  backdrop-filter: blur(16px);
+  gap: 6px;
+  justify-content: space-between;
+  z-index: 50;
+}
+
+.bottom-nav .nav-item {
+  flex: 1;
+  justify-content: center;
+  text-align: center;
+  font-size: 0.78rem;
+  padding: 8px 10px;
+}
+
+.bottom-nav .nav-item::before {
+  display: none;
+}
+
 .share-card,
 .card,
 .tile {
@@ -228,6 +260,14 @@ body {
   isolation: isolate;
 }
 
+.map-panel.map-only {
+  min-height: clamp(420px, 75vh, 760px);
+}
+
+.map-panel.is-hidden {
+  display: none;
+}
+
 .map {
   width: 100%;
   height: 100%;
@@ -235,10 +275,128 @@ body {
   position: relative;
 }
 
+.map-overlay {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 4;
+}
+
+.map-search {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 4;
+  width: min(420px, 90%);
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(13, 14, 20, 0.92);
+  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow);
+}
+
+.map-search-bar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.map-search-bar input {
+  flex: 1;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  background: #0c0d12;
+  color: var(--text);
+}
+
+.map-search-meta {
+  margin-top: 8px;
+  font-size: 0.8rem;
+}
+
+.map-results {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.map-result {
+  text-align: left;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+}
+
+.map-result:hover {
+  border-color: rgba(245, 200, 75, 0.4);
+}
+
+.search-marker {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #f7d570 0%, #f5c84b 70%, #b5851d 100%);
+  border: 2px solid #1b1b20;
+  box-shadow: 0 8px 18px rgba(245, 200, 75, 0.35);
+}
+
 .tile-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
+}
+
+.panel-header {
+  margin-bottom: 16px;
+}
+
+.panel-header h2 {
+  margin: 0 0 6px;
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+.panel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.friends-chat-layout {
+  display: flex;
+  min-height: 60vh;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  overflow: hidden;
+}
+
+.friends-chat-sidebar {
+  width: 280px;
+  border-right: 1px solid var(--border);
+  background: var(--bg-elev-2);
+}
+
+.friends-chat-main {
+  flex: 1;
+  background: #0a0a0a;
+}
+
+.friends-chat-header {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-soft);
 }
 
 .tile h3,
@@ -311,6 +469,11 @@ button:disabled {
 button:focus-visible {
   outline: none;
   box-shadow: var(--ring);
+}
+
+button.small {
+  padding: 6px 12px;
+  font-size: 0.78rem;
 }
 
 .primary {
@@ -409,6 +572,10 @@ button:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.contact-results {
+  margin-top: 12px;
 }
 
 .auth-card label,
@@ -533,6 +700,19 @@ button:focus-visible {
 .friend-card span {
   color: var(--muted);
   font-size: 0.85rem;
+}
+
+.friends-panel,
+.alerts-panel,
+.discover-panel,
+.share-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.hidden-mobile {
+  display: block;
 }
 
 .alert-row {
@@ -688,6 +868,53 @@ button:focus-visible {
   }
 }
 
+@media (max-width: 900px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+    padding: 18px 14px 110px;
+  }
+
+  .sidebar,
+  .rail {
+    display: none;
+  }
+
+  .bottom-nav {
+    display: flex;
+  }
+
+  .hidden-mobile {
+    display: none;
+  }
+
+  .friends-chat-layout {
+    flex-direction: column;
+  }
+
+  .friends-chat-sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .friends-chat-main {
+    min-height: 55vh;
+  }
+
+  .friends-chat-header {
+    display: flex;
+  }
+
+  .map-search {
+    width: calc(100% - 32px);
+  }
+
+  .map-search-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
 @media (max-width: 700px) {
   body {
     font-size: 15px;
@@ -698,13 +925,18 @@ button:focus-visible {
     gap: 18px;
   }
 
-  .app-shell.emergency-mode {
+  .app-shell.mesh-mode {
     padding: 16px 12px 24px;
   }
 
   .map-panel,
   .map {
     min-height: 45vh;
+  }
+
+  .map-panel.map-only,
+  .map-panel.map-only .map {
+    min-height: 60vh;
   }
 
   .brand h1 {

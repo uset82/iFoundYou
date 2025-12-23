@@ -2,7 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import maplibregl, { Marker } from 'maplibre-gl';
 import { hasSupabaseConfig, supabase } from './lib/supabase';
+import ChatList from './components/EmergencyChat/ChatList';
+import ChatWindow from './components/EmergencyChat/ChatWindow';
 import EmergencyChat from './components/EmergencyChat/EmergencyChat';
+import type { Peer } from './lib/mesh/types';
 
 type PositionState = {
   lat: number;
@@ -31,6 +34,13 @@ type ContactMatch = {
   id: string;
   display_name: string | null;
   match_type: string | null;
+};
+
+type MapSearchResult = {
+  id: string;
+  name: string;
+  lat: number;
+  lon: number;
 };
 
 type NearbyFriend = FriendSummary & {
@@ -157,6 +167,7 @@ export default function App() {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markerRef = useRef<Marker | null>(null);
+  const searchMarkerRef = useRef<Marker | null>(null);
   const friendMarkersRef = useRef<Map<string, Marker>>(new Map());
   const watchIdRef = useRef<number | null>(null);
   const lastSentRef = useRef<number>(0);
@@ -166,9 +177,10 @@ export default function App() {
   const lastDiscoveryFetchRef = useRef<number>(0);
 
   const [view, setView] = useState<
-    'map' | 'friends' | 'alerts' | 'discover' | 'settings' | 'emergency'
+    'map' | 'friends' | 'alerts' | 'discover' | 'share' | 'mesh'
   >('map');
-  const railView = view === 'map' ? 'friends' : view;
+  const showRail = view !== 'map' && view !== 'mesh';
+  const isMeshView = view === 'mesh';
 
   const [sharing, setSharing] = useState(false);
   const [position, setPosition] = useState<PositionState | null>(null);
@@ -197,6 +209,11 @@ export default function App() {
   const [contactRequestBusyId, setContactRequestBusyId] = useState<string | null>(
     null
   );
+  const [mapQuery, setMapQuery] = useState('');
+  const [mapResults, setMapResults] = useState<MapSearchResult[]>([]);
+  const [mapSearchBusy, setMapSearchBusy] = useState(false);
+  const [mapSearchError, setMapSearchError] = useState<string | null>(null);
+  const [activeFriendId, setActiveFriendId] = useState<string | null>(null);
   const [nearbyFriends, setNearbyFriends] = useState<NearbyFriend[]>([]);
   const [serverNearby, setServerNearby] = useState<NearbyFriend[] | null>(null);
   const [discoverable, setDiscoverable] = useState(false);
@@ -235,6 +252,22 @@ export default function App() {
   const pendingIncomingIdSet = useMemo(
     () => new Set(pendingIncoming.map((req) => req.user_id)),
     [pendingIncoming]
+  );
+  const activeFriend = useMemo(
+    () => friends.find((friend) => friend.id === activeFriendId) ?? null,
+    [friends, activeFriendId]
+  );
+  const friendPeers = useMemo<Peer[]>(
+    () =>
+      friends.map((friend) => ({
+        id: friend.id,
+        displayName: friend.name,
+        connected: true,
+        lastSeen: friend.updatedAt
+          ? new Date(friend.updatedAt).getTime()
+          : Date.now(),
+      })),
+    [friends]
   );
 
   useEffect(() => {
@@ -331,6 +364,19 @@ export default function App() {
       'bottom-left'
     );
   }, []);
+
+  useEffect(() => {
+    if (view === 'map' && mapRef.current) {
+      mapRef.current.resize();
+    }
+  }, [view]);
+
+  useEffect(() => {
+    if (view !== 'map') {
+      setMapResults([]);
+      setMapSearchError(null);
+    }
+  }, [view]);
 
   useEffect(() => {
     const mapInstance = mapRef.current;
@@ -515,6 +561,15 @@ export default function App() {
   useEffect(() => {
     void refreshFriends();
   }, [refreshFriends]);
+
+  useEffect(() => {
+    if (!activeFriendId) {
+      return;
+    }
+    if (!friends.some((friend) => friend.id === activeFriendId)) {
+      setActiveFriendId(null);
+    }
+  }, [activeFriendId, friends]);
 
   useEffect(() => {
     if (!session?.user) {
@@ -840,6 +895,86 @@ export default function App() {
       } catch (err) {
         alert(`Share this link: ${shareUrl}`);
       }
+    }
+  };
+
+  const selectMapResult = (result: MapSearchResult) => {
+    const mapInstance = mapRef.current;
+    if (!mapInstance) {
+      return;
+    }
+    mapInstance.easeTo({
+      center: [result.lon, result.lat],
+      zoom: 13,
+      duration: 700,
+    });
+
+    if (searchMarkerRef.current) {
+      searchMarkerRef.current.remove();
+    }
+    const el = document.createElement('div');
+    el.className = 'search-marker';
+    searchMarkerRef.current = new maplibregl.Marker({ element: el })
+      .setLngLat([result.lon, result.lat])
+      .addTo(mapInstance);
+    setMapResults([]);
+  };
+
+  const searchPlaces = async () => {
+    const trimmed = mapQuery.trim();
+    if (!trimmed) {
+      setMapResults([]);
+      setMapSearchError('Enter a place or address.');
+      return;
+    }
+
+    setMapSearchBusy(true);
+    setMapSearchError(null);
+
+    const mapCenter = mapRef.current?.getCenter();
+    const center = mapCenter ?? { lng: DEFAULT_CENTER.lon, lat: DEFAULT_CENTER.lat };
+    const delta = 0.35;
+    const viewbox = [
+      center.lng - delta,
+      center.lat - delta,
+      center.lng + delta,
+      center.lat + delta,
+    ].join(',');
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+      trimmed
+    )}&limit=5&viewbox=${viewbox}&bounded=1`;
+
+    try {
+      const response = await fetch(url, {
+        headers: {
+          Accept: 'application/json',
+        },
+      });
+      if (!response.ok) {
+        setMapSearchError('Search failed. Try again.');
+        setMapResults([]);
+        return;
+      }
+      const payload = await response.json();
+      const results = (Array.isArray(payload) ? payload : [])
+        .map((item) => ({
+          id: String(item.place_id ?? item.osm_id ?? item.display_name),
+          name: item.display_name ?? 'Result',
+          lat: Number(item.lat),
+          lon: Number(item.lon),
+        }))
+        .filter(
+          (item) => Number.isFinite(item.lat) && Number.isFinite(item.lon)
+        );
+      setMapResults(results);
+      if (results.length === 0) {
+        setMapSearchError('No results near the map center.');
+      }
+    } catch {
+      setMapSearchError('Search failed. Check your connection.');
+      setMapResults([]);
+    } finally {
+      setMapSearchBusy(false);
     }
   };
 
@@ -1253,7 +1388,11 @@ export default function App() {
   ) : null;
 
   return (
-    <div className={`app-shell ${view === 'emergency' ? 'emergency-mode' : ''}`}>
+    <div
+      className={`app-shell ${isMeshView ? 'mesh-mode' : ''} ${
+        showRail ? 'with-rail' : 'no-rail'
+      }`}
+    >
       <aside className="sidebar">
         <div className="brand">
           <div className="logo">
@@ -1305,17 +1444,17 @@ export default function App() {
           </button>
           <button
             type="button"
-            className={`nav-item ${view === 'settings' ? 'is-active' : ''}`}
-            onClick={() => setView('settings')}
+            className={`nav-item ${view === 'share' ? 'is-active' : ''}`}
+            onClick={() => setView('share')}
           >
-            Settings
+            Share
           </button>
           <button
             type="button"
-            className={`nav-item ${view === 'emergency' ? 'is-active' : ''}`}
-            onClick={() => setView('emergency')}
+            className={`nav-item ${view === 'mesh' ? 'is-active' : ''}`}
+            onClick={() => setView('mesh')}
           >
-            Mesh Network
+            Mesh
           </button>
         </nav>
         <div className="share-card">
@@ -1403,263 +1542,126 @@ export default function App() {
       </aside>
 
       <main className="main">
-        {view !== 'emergency' && (
-          <section className="map-panel">
-            <div className="map" ref={mapContainerRef} />
-          </section>
-        )}
-        {view !== 'emergency' && (
-          <section className="tile-grid">
-            <div className="tile">
-              <h3>Nearby now</h3>
-              {(serverNearby ?? nearbyFriends).length === 0 ? (
-                <p className="muted">No friends within {ALERT_RADIUS_METERS}m.</p>
-              ) : (
-                <ul>
-                  {(serverNearby ?? nearbyFriends).map((friend) => (
-                    <li key={friend.id}>
-                      {friend.name}
-                      {friend.distance_m !== undefined && (
-                        <span className="distance">
-                          {Math.round(friend.distance_m)}m
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <p className="muted nearby-source">
-                Source: {serverNearby ? 'Server' : 'Local'}
-              </p>
-            </div>
-          </section>
-        )}
-
-        {view === 'emergency' && (
-          <EmergencyChat
-            userId={session?.user?.id ?? 'anon-' + Math.random().toString(36).substr(2, 9)}
-            userName={session?.user?.email?.split('@')[0] ?? 'Anonymous'}
-            isAuthed={isAuthed}
-            friends={friends.map((friend) => ({
-              id: friend.id,
-              name: friend.name,
-            }))}
-            onClose={() => setView('map')}
-          />
-        )}
-      </main>
-      {view !== 'emergency' && (
-        <aside className="rail">
-          {railView === 'friends' && (
+        <section
+          className={`map-panel map-only ${view === 'map' ? 'is-active' : 'is-hidden'}`}
+        >
+          <div className="map" ref={mapContainerRef} />
+          {view === 'map' && (
             <>
-              <div className="rail-header">
-                <h2>Friends</h2>
-                <p className="muted">Invite, manage, and share with your circle.</p>
+              <div className="map-overlay">
+                <span className="pill">Friends online: {friends.length}</span>
               </div>
-
-              {authCard}
-
-              {isAuthed && (
-                <>
-                  <div className="card contact-card invite-card">
-                    <h3>Find friends from contacts</h3>
-                    <p className="muted">
-                      Paste emails or phone numbers. Friends must enable contact
-                      matching in Settings.
-                    </p>
-                    <label className="field">
-                      Paste email/phone contacts
-                      <textarea
-                        value={contactPaste}
-                        onChange={(event) => setContactPaste(event.target.value)}
-                        rows={3}
-                        placeholder="alex@example.com&#10;+1 415 555 0199"
-                      />
-                    </label>
-                    <div className="contact-actions">
-                      <button
-                        className="primary"
-                        onClick={findContactMatches}
-                        disabled={contactMatchBusy || !contactPaste.trim()}
-                      >
-                        {contactMatchBusy ? 'Searching...' : 'Find matches'}
-                      </button>
-                    </div>
-                    {contactMatchError && (
-                      <p className="error">{contactMatchError}</p>
-                    )}
-                    <div className="share-buttons">
-                      <div className="share-copy">
-                        <h3>Invite friends</h3>
-                        <p className="muted">
-                          Share iFoundYou on Apple, Google, Facebook, or Instagram.
-                        </p>
-                      </div>
-                      <button
-                        className="primary"
-                        onClick={() => shareApp('apple')}
-                      >
-                        Share with Apple
-                      </button>
-                      <button
-                        className="primary"
-                        onClick={() => shareApp('google')}
-                      >
-                        Share with Google
-                      </button>
-                      <button
-                        className="ghost"
-                        onClick={() => shareApp('facebook')}
-                      >
-                        Share on Facebook
-                      </button>
-                      <button
-                        className="ghost"
-                        onClick={() => shareApp('instagram')}
-                      >
-                        Share on Instagram
-                      </button>
-                    </div>
-                  </div>
-
-                  {contactMatchAttempted && (
-                    <div className="card contact-results">
-                      <h3>Matches</h3>
-                      {contactMatchBusy ? (
-                        <p className="muted">Searching...</p>
-                      ) : contactMatches.length === 0 ? (
-                        <p className="muted">No matches yet.</p>
-                      ) : (
-                        contactMatches.map((match) => {
-                          const isFriend = friendIdSet.has(match.id);
-                          const isOutgoing = pendingOutgoingIdSet.has(match.id);
-                          const isIncoming = pendingIncomingIdSet.has(match.id);
-                          const matchLabel =
-                            match.match_type === 'email'
-                              ? 'Email match'
-                              : match.match_type === 'phone'
-                                ? 'Phone match'
-                                : 'Match';
-
-                          return (
-                            <div key={match.id} className="request-row contact-row">
-                              <div className="contact-meta">
-                                <strong>{match.display_name ?? 'Friend'}</strong>
-                                <span className="muted">{matchLabel}</span>
-                              </div>
-                              <div className="contact-actions">
-                                {isFriend ? (
-                                  <span className="muted">Friends</span>
-                                ) : isOutgoing ? (
-                                  <span className="muted">Pending</span>
-                                ) : isIncoming ? (
-                                  <span className="muted">Incoming request</span>
-                                ) : (
-                                  <button
-                                    className="primary"
-                                    onClick={() => sendContactRequest(match.id)}
-                                    disabled={contactRequestBusyId === match.id}
-                                  >
-                                    {contactRequestBusyId === match.id
-                                      ? 'Sending...'
-                                      : 'Send request'}
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
-
-              {pendingIncoming.length > 0 && (
-                <div className="card pending-list">
-                  <h3>Incoming requests</h3>
-                  {pendingIncoming.map((req) => (
-                    <div key={req.id} className="request-row">
-                      <span>{req.user_id}</span>
-                      <div className="request-actions">
-                        <button
-                          className="primary"
-                          onClick={() => respondToRequest(req.id, 'accepted')}
-                          disabled={friendBusy}
-                        >
-                          Accept
-                        </button>
-                        <button
-                          className="ghost"
-                          onClick={() => respondToRequest(req.id, 'blocked')}
-                          disabled={friendBusy}
-                        >
-                          Decline
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+              <div className="map-search">
+                <div className="map-search-bar">
+                  <input
+                    value={mapQuery}
+                    onChange={(event) => {
+                      setMapQuery(event.target.value);
+                      if (mapSearchError) {
+                        setMapSearchError(null);
+                      }
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        void searchPlaces();
+                      }
+                    }}
+                    placeholder="Search places near map center"
+                  />
+                  <button
+                    className="primary"
+                    onClick={() => void searchPlaces()}
+                    disabled={mapSearchBusy || !mapQuery.trim()}
+                  >
+                    {mapSearchBusy ? 'Searching...' : 'Search'}
+                  </button>
                 </div>
-              )}
-
-              {pendingOutgoing.length > 0 && (
-                <div className="card pending-list">
-                  <h3>Outgoing requests</h3>
-                  {pendingOutgoing.map((req) => (
-                    <div key={req.id} className="request-row">
-                      <span>{req.friend_id}</span>
-                      <span className="muted">Pending</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="card friend-list">
-                {friends.length === 0 && (
-                  <div className="friend-card empty">
-                    <div>
-                      <strong>No friends yet</strong>
-                      <span>Share the app to start connecting.</span>
-                    </div>
+                <p className="muted map-search-meta">
+                  Powered by OpenStreetMap. Search uses the map center as the origin.
+                </p>
+                {mapSearchError && <p className="error">{mapSearchError}</p>}
+                {mapResults.length > 0 && (
+                  <div className="map-results">
+                    {mapResults.map((result) => (
+                      <button
+                        type="button"
+                        key={result.id}
+                        className="map-result"
+                        onClick={() => selectMapResult(result)}
+                      >
+                        {result.name}
+                      </button>
+                    ))}
                   </div>
                 )}
-                {friends.map((friend) => (
-                  <div key={friend.id} className="friend-card">
-                    <div>
-                      <strong>{friend.name}</strong>
-                      <span>
-                        {friend.updatedAt
-                          ? `Updated ${new Date(friend.updatedAt).toLocaleTimeString()}`
-                          : 'No location yet'}
-                      </span>
-                    </div>
-                    <button className="ghost" disabled>
-                      Ping
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              <div className="card callout">
-                <h3>Next step</h3>
-                <p className="muted">
-                  Add server-side proximity alerts and web push subscriptions.
-                </p>
               </div>
             </>
           )}
+        </section>
 
-          {railView === 'alerts' && (
-            <>
-              <div className="rail-header">
-                <h2>Alerts</h2>
-                <p className="muted">Emergency broadcasts and proximity notifications.</p>
+        {view === 'friends' && (
+          <section className="friends-panel">
+            {!isAuthed && authCard}
+            {isAuthed && (
+              <div className="friends-chat-layout">
+                <div className={`friends-chat-sidebar ${activeFriend ? 'hidden-mobile' : ''}`}>
+                  <ChatList
+                    peers={friendPeers}
+                    onSelectPeer={(peer) => setActiveFriendId(peer.id)}
+                    selectedPeerId={activeFriend?.id}
+                    title="Friends"
+                    statusLabel="friends"
+                    statusLabelSingular="friend"
+                    emptyTitle="No friends yet"
+                    emptyHint="Find friends in the Share tab."
+                  />
+                </div>
+                <div className={`friends-chat-main ${!activeFriend ? 'hidden-mobile' : ''}`}>
+                  {activeFriend ? (
+                    <>
+                      <div className="friends-chat-header">
+                        <button
+                          className="ghost small"
+                          onClick={() => setActiveFriendId(null)}
+                        >
+                          Back
+                        </button>
+                        <span className="muted">Friends</span>
+                      </div>
+                      <ChatWindow
+                        userId={session?.user?.id ?? ''}
+                        userName={session?.user?.email?.split('@')[0] ?? 'You'}
+                        recipientId={activeFriend.id}
+                        recipientName={activeFriend.name}
+                        mode="web"
+                      />
+                    </>
+                  ) : (
+                    <div className="empty-state">
+                      <div className="empty-icon">CHAT</div>
+                      <h2>Select a friend to chat</h2>
+                      <p>Messages sync in real time when you are both online.</p>
+                    </div>
+                  )}
+                </div>
               </div>
+            )}
+          </section>
+        )}
 
+        {view === 'alerts' && (
+          <section className="alerts-panel">
+            <div className="panel-header">
+              <h2>Alerts</h2>
+              <p className="muted">Emergency broadcasts and proximity notifications.</p>
+            </div>
+            {!isAuthed && authCard}
+            <div className="panel-grid">
               {isAuthed && (
                 <div className="card emergency-card">
-                  <h3>Emergency broadcast</h3>
-                  <p className="muted">Send a short alert to people nearby.</p>
+                  <h3>Send an alert</h3>
+                  <p className="muted">Broadcast a short message to people nearby.</p>
                   <label className="field">
                     Category
                     <select
@@ -1727,7 +1729,7 @@ export default function App() {
                 </div>
               )}
 
-              <div className="tile">
+              <div className="card">
                 <h3>Community alerts</h3>
                 {communityAlerts.length === 0 ? (
                   <p className="muted">No alerts nearby.</p>
@@ -1761,7 +1763,7 @@ export default function App() {
                 )}
               </div>
 
-              <div className="tile">
+              <div className="card">
                 <h3>Proximity alerts</h3>
                 {notifications.length === 0 ? (
                   <p className="muted">No alerts yet.</p>
@@ -1779,16 +1781,18 @@ export default function App() {
                 )}
                 {notificationsError && <p className="error">{notificationsError}</p>}
               </div>
-            </>
-          )}
+            </div>
+          </section>
+        )}
 
-          {railView === 'discover' && (
-            <>
-              <div className="rail-header">
-                <h2>Discover</h2>
-                <p className="muted">Find people nearby who are open to connecting.</p>
-              </div>
-
+        {view === 'discover' && (
+          <section className="discover-panel">
+            <div className="panel-header">
+              <h2>Discover</h2>
+              <p className="muted">Find people nearby who are open to connecting.</p>
+            </div>
+            {!isAuthed && authCard}
+            <div className="panel-grid">
               {isAuthed && (
                 <div className="card discover-card">
                   <div>
@@ -1810,7 +1814,7 @@ export default function App() {
                 </div>
               )}
 
-              <div className="tile">
+              <div className="card">
                 <h3>People nearby</h3>
                 {discoveredPeople.length === 0 ? (
                   <p className="muted">No discoverable people within 1000m.</p>
@@ -1829,34 +1833,124 @@ export default function App() {
                   </ul>
                 )}
               </div>
-            </>
-          )}
+            </div>
+          </section>
+        )}
 
-          {railView === 'settings' && (
-            <>
-              <div className="rail-header">
-                <h2>Settings</h2>
-                <p className="muted">Manage your account and preferences.</p>
-              </div>
+        {view === 'share' && (
+          <section className="share-panel">
+            <div className="panel-header">
+              <h2>Share</h2>
+              <p className="muted">Invite friends and control contact matching.</p>
+            </div>
+            {!isAuthed && authCard}
+            <div className="panel-grid">
+              {isAuthed && (
+                <div className="card contact-card invite-card">
+                  <h3>Find friends from contacts</h3>
+                  <p className="muted">
+                    Paste emails or phone numbers. Friends must enable contact matching
+                    first.
+                  </p>
+                  <label className="field">
+                    Paste email/phone contacts
+                    <textarea
+                      value={contactPaste}
+                      onChange={(event) => setContactPaste(event.target.value)}
+                      rows={3}
+                      placeholder="alex@example.com&#10;+1 415 555 0199"
+                    />
+                  </label>
+                  <div className="contact-actions">
+                    <button
+                      className="primary"
+                      onClick={findContactMatches}
+                      disabled={contactMatchBusy || !contactPaste.trim()}
+                    >
+                      {contactMatchBusy ? 'Searching...' : 'Find matches'}
+                    </button>
+                  </div>
+                  {contactMatchError && (
+                    <p className="error">{contactMatchError}</p>
+                  )}
+                  {contactMatchAttempted && (
+                    <div className="contact-results">
+                      {contactMatchBusy ? (
+                        <p className="muted">Searching...</p>
+                      ) : contactMatches.length === 0 ? (
+                        <p className="muted">No matches yet.</p>
+                      ) : (
+                        contactMatches.map((match) => {
+                          const isFriend = friendIdSet.has(match.id);
+                          const isOutgoing = pendingOutgoingIdSet.has(match.id);
+                          const isIncoming = pendingIncomingIdSet.has(match.id);
+                          const matchLabel =
+                            match.match_type === 'email'
+                              ? 'Email match'
+                              : match.match_type === 'phone'
+                                ? 'Phone match'
+                                : 'Match';
 
-              {authCard}
+                          return (
+                            <div key={match.id} className="request-row contact-row">
+                              <div className="contact-meta">
+                                <strong>{match.display_name ?? 'Friend'}</strong>
+                                <span className="muted">{matchLabel}</span>
+                              </div>
+                              <div className="contact-actions">
+                                {isFriend ? (
+                                  <span className="muted">Friends</span>
+                                ) : isOutgoing ? (
+                                  <span className="muted">Pending</span>
+                                ) : isIncoming ? (
+                                  <span className="muted">Incoming request</span>
+                                ) : (
+                                  <button
+                                    className="primary"
+                                    onClick={() => sendContactRequest(match.id)}
+                                    disabled={contactRequestBusyId === match.id}
+                                  >
+                                    {contactRequestBusyId === match.id
+                                      ? 'Sending...'
+                                      : 'Send request'}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {isAuthed && (
-                <div className="card profile-card">
-                  <p>
-                    Signed in as <strong>{session?.user?.email}</strong>
-                  </p>
-                  <button className="ghost" onClick={signOut}>
-                    Sign out
-                  </button>
+                <div className="card">
+                  <h3>Share iFoundYou</h3>
+                  <p className="muted">Send the app link to people you trust.</p>
+                  <div className="share-buttons">
+                    <button className="primary" onClick={() => shareApp('apple')}>
+                      Share with Apple
+                    </button>
+                    <button className="primary" onClick={() => shareApp('google')}>
+                      Share with Google
+                    </button>
+                    <button className="ghost" onClick={() => shareApp('facebook')}>
+                      Share on Facebook
+                    </button>
+                    <button className="ghost" onClick={() => shareApp('instagram')}>
+                      Share on Instagram
+                    </button>
+                  </div>
                 </div>
               )}
 
               {isAuthed && (
                 <div className="card settings-card">
-                  <h3>Contact info</h3>
+                  <h3>Contact matching</h3>
                   <p className="muted">
-                    How friends can find you. This is only visible to friends you accept.
+                    Control how friends can find you by email or phone.
                   </p>
                   <div className="setting-row">
                     <label className="checkbox-label">
@@ -1893,13 +1987,181 @@ export default function App() {
                 </div>
               )}
 
-              <div className="card debug-card">
-                <h3>Debug</h3>
-                <p className="muted">Build: {new Date().toISOString()}</p>
+              {isAuthed && (
+                <div className="card profile-card">
+                  <p>
+                    Signed in as <strong>{session?.user?.email}</strong>
+                  </p>
+                  <button className="ghost" onClick={signOut}>
+                    Sign out
+                  </button>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {view === 'mesh' && (
+          <EmergencyChat
+            userId={session?.user?.id ?? 'anon-' + Math.random().toString(36).substr(2, 9)}
+            userName={session?.user?.email?.split('@')[0] ?? 'Anonymous'}
+            isAuthed={isAuthed}
+            friends={friends.map((friend) => ({
+              id: friend.id,
+              name: friend.name,
+            }))}
+            onClose={() => setView('map')}
+          />
+        )}
+      </main>
+      {showRail && (
+        <aside className="rail">
+          {view === 'friends' && (
+            <>
+              <div className="rail-header">
+                <h2>Friends</h2>
+                <p className="muted">Manage requests and chat access.</p>
+              </div>
+
+              {pendingIncoming.length > 0 && (
+                <div className="card pending-list">
+                  <h3>Incoming requests</h3>
+                  {pendingIncoming.map((req) => (
+                    <div key={req.id} className="request-row">
+                      <span>{req.user_id}</span>
+                      <div className="request-actions">
+                        <button
+                          className="primary"
+                          onClick={() => respondToRequest(req.id, 'accepted')}
+                          disabled={friendBusy}
+                        >
+                          Accept
+                        </button>
+                        <button
+                          className="ghost"
+                          onClick={() => respondToRequest(req.id, 'blocked')}
+                          disabled={friendBusy}
+                        >
+                          Decline
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {pendingOutgoing.length > 0 && (
+                <div className="card pending-list">
+                  <h3>Outgoing requests</h3>
+                  {pendingOutgoing.map((req) => (
+                    <div key={req.id} className="request-row">
+                      <span>{req.friend_id}</span>
+                      <span className="muted">Pending</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {view === 'alerts' && (
+            <>
+              <div className="rail-header">
+                <h2>Alert status</h2>
+                <p className="muted">Keep location sharing on for alert accuracy.</p>
+              </div>
+              <div className="card">
+                <p className="muted">
+                  Share your location to attach accuracy and distance to alerts.
+                </p>
+                <button
+                  className="primary"
+                  onClick={startSharing}
+                  disabled={sharing || !isAuthed}
+                >
+                  Start sharing
+                </button>
+                <button className="ghost" onClick={stopSharing} disabled={!sharing}>
+                  Stop
+                </button>
+              </div>
+            </>
+          )}
+
+          {view === 'discover' && (
+            <>
+              <div className="rail-header">
+                <h2>Discovery tips</h2>
+                <p className="muted">Only you control who can find you.</p>
+              </div>
+              <div className="card">
+                <p className="muted">
+                  Toggle Discovery Mode and share location to appear nearby.
+                </p>
+              </div>
+            </>
+          )}
+
+          {view === 'share' && (
+            <>
+              <div className="rail-header">
+                <h2>Share tips</h2>
+                <p className="muted">Invite trusted contacts and grow safely.</p>
+              </div>
+              <div className="card">
+                <p className="muted">
+                  Ask friends to enable contact matching so you can find each other.
+                </p>
               </div>
             </>
           )}
         </aside>
+      )}
+      {!isMeshView && (
+        <nav className="bottom-nav">
+          <button
+            type="button"
+            className={`nav-item ${view === 'map' ? 'is-active' : ''}`}
+            onClick={() => setView('map')}
+          >
+            Map
+          </button>
+          <button
+            type="button"
+            className={`nav-item ${view === 'friends' ? 'is-active' : ''}`}
+            onClick={() => setView('friends')}
+          >
+            Friends
+          </button>
+          <button
+            type="button"
+            className={`nav-item ${view === 'alerts' ? 'is-active' : ''}`}
+            onClick={() => setView('alerts')}
+          >
+            Alerts
+          </button>
+          <button
+            type="button"
+            className={`nav-item ${view === 'discover' ? 'is-active' : ''}`}
+            onClick={() => setView('discover')}
+          >
+            Discover
+          </button>
+          <button
+            type="button"
+            className={`nav-item ${view === 'share' ? 'is-active' : ''}`}
+            onClick={() => setView('share')}
+          >
+            Share
+          </button>
+          <button
+            type="button"
+            className={`nav-item ${view === 'mesh' ? 'is-active' : ''}`}
+            onClick={() => setView('mesh')}
+          >
+            Mesh
+          </button>
+        </nav>
       )}
     </div>
   );
