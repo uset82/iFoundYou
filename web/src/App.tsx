@@ -1129,7 +1129,7 @@ export default function App() {
   ) : null;
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${view === 'emergency' ? 'emergency-mode' : ''}`}>
       <aside className="sidebar">
         <div className="brand">
           <div className="logo">

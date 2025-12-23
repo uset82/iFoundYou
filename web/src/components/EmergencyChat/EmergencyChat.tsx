@@ -15,6 +15,10 @@ const EmergencyChat: React.FC<EmergencyChatProps> = ({ userId, userName, onClose
     const [selectedPeer, setSelectedPeer] = useState<Peer | null>(null);
     const [peers, setPeers] = useState<Peer[]>([]);
     const multipeerRef = useRef<MultipeerManager | null>(null);
+    const supportsNativeMesh =
+        typeof window !== 'undefined' &&
+        Boolean((window as any).webkit?.messageHandlers?.multipeer);
+    const [demoMode, setDemoMode] = useState(!supportsNativeMesh);
 
     useEffect(() => {
         // Initialize Multipeer Manager
@@ -29,9 +33,9 @@ const EmergencyChat: React.FC<EmergencyChatProps> = ({ userId, userName, onClose
             setPeers(multipeer.getConnectedPeers());
         });
 
-        // Setup mock peers for testing if in browser
-        if (!(window as any).webkit) {
-            setTimeout(() => {
+        let demoTimer: number | null = null;
+        if (demoMode) {
+            demoTimer = window.setTimeout(() => {
                 const mockPeers: Peer[] = [
                     {
                         id: 'mock-peer-1',
@@ -48,16 +52,19 @@ const EmergencyChat: React.FC<EmergencyChatProps> = ({ userId, userName, onClose
                         distance: 42
                     }
                 ];
-                // We can't directly inject into the manager without exposing a method, 
-                // so we'll just set state for UI testing purposes
+                // We can't directly inject into the manager without exposing a method,
+                // so we'll just set state for UI testing purposes.
                 setPeers(mockPeers);
-            }, 2000);
+            }, 800);
         }
 
         return () => {
+            if (demoTimer !== null) {
+                window.clearTimeout(demoTimer);
+            }
             multipeer.disconnect();
         };
-    }, [userId, userName]);
+    }, [demoMode, userId, userName]);
 
     return (
         <div className="emergency-chat-container">
@@ -66,6 +73,22 @@ const EmergencyChat: React.FC<EmergencyChatProps> = ({ userId, userName, onClose
                 <h1>Emergency Mesh Network</h1>
                 <div className="network-status">Online</div>
             </div>
+            {!supportsNativeMesh && (
+                <div className="mesh-banner">
+                    <div>
+                        <strong>Web demo only</strong>
+                        <p>Bluetooth/Wi-Fi Direct requires the native app.</p>
+                    </div>
+                    <button
+                        className="ghost small"
+                        type="button"
+                        onClick={() => setDemoMode(true)}
+                        disabled={demoMode}
+                    >
+                        {demoMode ? 'Demo peers on' : 'Load demo peers'}
+                    </button>
+                </div>
+            )}
 
             <div className="chat-layout">
                 <div className={`emergency-sidebar ${selectedPeer ? 'hidden-mobile' : ''}`}>

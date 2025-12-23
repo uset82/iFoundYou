@@ -43,6 +43,20 @@ body {
   padding: 28px 32px 48px;
 }
 
+.app-shell.emergency-mode {
+  grid-template-columns: 1fr;
+  padding: 24px;
+}
+
+.app-shell.emergency-mode .sidebar,
+.app-shell.emergency-mode .rail {
+  display: none;
+}
+
+.app-shell.emergency-mode .main {
+  min-height: calc(100vh - 48px);
+}
+
 .sidebar,
 .rail {
   display: flex;
@@ -682,6 +696,10 @@ button:focus-visible {
   .app-shell {
     padding: 18px 14px 28px;
     gap: 18px;
+  }
+
+  .app-shell.emergency-mode {
+    padding: 16px 12px 24px;
   }
 
   .map-panel,
