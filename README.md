@@ -31,6 +31,7 @@ community alerts (water, food, medical, shelter, lost person).
 ## Local setup
 1) Install deps
 ```bash
+npm install
 npm --prefix web install
 ```
 

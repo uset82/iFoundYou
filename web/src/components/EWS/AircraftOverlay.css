@@ -37,6 +37,15 @@
   font-weight: 600;
 }
 
+@media (max-width: 700px) {
+  .ews-aircraft-toggle {
+    top: calc(252px + env(safe-area-inset-top));
+    right: 12px;
+    bottom: auto;
+    border-radius: 999px;
+  }
+}
+
 /* Popup styles */
 .ews-aircraft-popup {
   display: flex;
