@@ -163,6 +163,14 @@ export class TransportManager {
     }
   }
 
+  getTransports(): ChatTransport[] {
+    const list: ChatTransport[] = [];
+    if (this.internet) list.push(this.internet);
+    if (this.bleAdapter) list.push(this.bleAdapter);
+    if (this.httpAdapter) list.push(this.httpAdapter);
+    return list;
+  }
+
   /**
    * Try to send via each transport in priority order. Returns the outcome
    * (which transport carried it, optional id). If every transport fails,

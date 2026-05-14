@@ -118,7 +118,7 @@ exports.handler = async (event) => {
         token
       ),
       supabaseFetch(
-        `/rest/v1/profiles?select=id,display_name&id=in.(${candidateIds.join(
+        `/rest/v1/profiles?select=id,display_name,is_gateway&id=in.(${candidateIds.join(
           ','
         )})`,
         token
@@ -137,7 +137,10 @@ exports.handler = async (event) => {
 
   const profileMap = new Map();
   (profilesResult.data ?? []).forEach((profile) => {
-    profileMap.set(profile.id, profile.display_name ?? 'Someone');
+    profileMap.set(profile.id, {
+      name: profile.display_name ?? 'Someone',
+      isGateway: profile.is_gateway ?? false,
+    });
   });
 
   const people = (locationsResult.data ?? [])
@@ -148,9 +151,11 @@ exports.handler = async (event) => {
         loc.lat,
         loc.lon
       );
+      const profile = profileMap.get(loc.user_id) ?? { name: 'Someone', isGateway: false };
       return {
         id: loc.user_id,
-        name: profileMap.get(loc.user_id) ?? 'Someone',
+        name: profile.name,
+        isGateway: profile.isGateway,
         updatedAt: loc.updated_at,
         lat: loc.lat,
         lon: loc.lon,

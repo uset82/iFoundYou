@@ -1,0 +1,25 @@
+.qr-modal {
+  max-width: 400px;
+  text-align: center;
+}
+
+.qr-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: white;
+  padding: 1rem;
+  border-radius: 8px;
+  margin: 1.5rem auto;
+  width: fit-content;
+}
+
+.qr-instructions {
+  margin-bottom: 1.5rem;
+  line-height: 1.4;
+}
+
+.qr-actions {
+  display: flex;
+  justify-content: center;
+}

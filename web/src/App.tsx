@@ -9,6 +9,7 @@ import EWSPanel from './components/EWS/EWSPanel';
 import AircraftOverlay from './components/EWS/AircraftOverlay';
 import NetworkStatusBar from './components/MeshGuardian/NetworkStatusBar';
 import IosInstallTutorial from './components/MeshGuardian/IosInstallTutorial';
+import AndroidInstallPrompt from './components/MeshGuardian/AndroidInstallPrompt';
 import TransportIndicator from './components/MeshGuardian/TransportIndicator';
 import { useUnreadCounts } from './lib/chat/useUnreadCounts';
 import { useBlockedUsers } from './lib/chat/useBlockedUsers';
@@ -23,6 +24,8 @@ import ProfilePanel from './components/Profile/ProfilePanel';
 import ConnectedUsersPanel from './components/Connected/ConnectedUsersPanel';
 import MeshConnectModal from './components/MeshGuardian/MeshConnectModal';
 import WifiPanel from './components/Wifi/WifiPanel';
+import { bridgeManager } from './lib/mesh/BridgeManager';
+import ChannelManager from './components/MeshGuardian/ChannelManager';
 
 type PositionState = {
   lat: number;
@@ -37,6 +40,8 @@ type FriendSummary = {
   updatedAt: string | null;
   lat: number | null;
   lon: number | null;
+  isGateway: boolean;
+  isEmergencyContact?: boolean;
 };
 
 type FriendRequest = {
@@ -522,7 +527,7 @@ export default function App() {
     const userId = session.user.id;
     const { data: links, error: linksError } = await supabase
       .from('friendships')
-      .select('id, user_id, friend_id, status, created_at')
+      .select('id, user_id, friend_id, status, created_at, is_emergency_contact')
       .or(`user_id.eq.${userId},friend_id.eq.${userId}`);
 
     if (linksError || !links) {
@@ -545,7 +550,7 @@ export default function App() {
 
     const { data: profiles } = await supabase
       .from('profiles')
-      .select('id, display_name')
+      .select('id, display_name, is_gateway')
       .in('id', friendIds);
 
     const { data: locations } = await supabase
@@ -553,9 +558,12 @@ export default function App() {
       .select('user_id, lat, lon, updated_at')
       .in('user_id', friendIds);
 
-    const profileMap = new Map<string, string>();
+    const profileMap = new Map<string, { name: string; isGateway: boolean }>();
     profiles?.forEach((profile) => {
-      profileMap.set(profile.id, profile.display_name ?? 'Friend');
+      profileMap.set(profile.id, {
+        name: profile.display_name ?? 'Friend',
+        isGateway: profile.is_gateway ?? false,
+      });
     });
 
     const locationMap = new Map(
@@ -564,12 +572,16 @@ export default function App() {
 
     const nextFriends = friendIds.map((id) => {
       const loc = locationMap.get(id);
+      const profile = profileMap.get(id) ?? { name: 'Friend', isGateway: false };
+      const link = accepted.find((l) => l.user_id === id || l.friend_id === id);
       return {
         id,
-        name: profileMap.get(id) ?? 'Friend',
+        name: profile.name,
+        isGateway: profile.isGateway,
         updatedAt: loc?.updated_at ?? null,
         lat: loc?.lat ?? null,
         lon: loc?.lon ?? null,
+        isEmergencyContact: link?.is_emergency_contact ?? false,
       };
     });
 
@@ -660,6 +672,7 @@ export default function App() {
       setContactEmailEnabled(false);
       setContactPhoneInput('');
       setContactSettingsError(null);
+      bridgeManager.stop();
       return;
     }
     if (!hasSupabaseConfig) {
@@ -668,7 +681,7 @@ export default function App() {
     const loadContactSettings = async () => {
       const { data, error: profileError } = await supabase
         .from('profiles')
-        .select('contact_email, contact_phone')
+        .select('contact_email, contact_phone, is_gateway')
         .eq('id', session.user.id)
         .maybeSingle();
       if (profileError) {
@@ -678,8 +691,18 @@ export default function App() {
       setContactEmailEnabled(Boolean(data?.contact_email));
       setContactPhoneInput(data?.contact_phone ?? '');
       setContactSettingsError(null);
+
+      if (data?.is_gateway) {
+        void bridgeManager.start(session.user.id);
+      } else {
+        bridgeManager.stop();
+      }
     };
     void loadContactSettings();
+
+    return () => {
+      bridgeManager.stop();
+    };
   }, [session?.user]);
 
   useEffect(() => {
@@ -1408,6 +1431,7 @@ export default function App() {
   return (
     <EWSProvider>
     <IosInstallTutorial />
+    <AndroidInstallPrompt />
     {showNewGroupModal && session?.user && (
       <NewGroupModal
         userId={session.user.id}
@@ -1852,7 +1876,7 @@ export default function App() {
                 </div>
               )}
 
-              <div className="card discover-people-card">
+              <div className={`card discover-people-card ${activeDiscoveryChat ? 'mobile-hidden' : ''}`}>
                 <h3>People connected in app</h3>
                 {visibleDiscoveredPeople.length === 0 ? (
                   <p className="muted">No connected discoverable people within 1000m.</p>
@@ -1940,7 +1964,7 @@ export default function App() {
               </div>
 
               {isAuthed && activeDiscoveryChat && (
-                <div className="discover-chat-panel">
+                <div className="discover-chat-panel mobile-fullscreen">
                   <div className="discover-chat-toolbar">
                     <span>
                       Chatting with <strong>{activeDiscoveryChat.name}</strong>
@@ -2032,6 +2056,10 @@ export default function App() {
                   />
                 )}
               </div>
+            )}
+            
+            {isAuthed && session?.user && (
+              <ChannelManager userId={session.user.id} />
             )}
           </section>
         )}
@@ -2205,6 +2233,16 @@ export default function App() {
             <ConnectedUsersPanel
               friends={friends}
               discovered={visibleDiscoveredPeople}
+              onToggleEmergencyContact={async (friendId, isEmergency) => {
+                if (!session?.user?.id) return;
+                const { error } = await supabase
+                  .from('friendships')
+                  .update({ is_emergency_contact: isEmergency })
+                  .or(`and(user_id.eq.${session.user.id},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${session.user.id})`);
+                if (!error) {
+                  await refreshFriends();
+                }
+              }}
               onOpenChat={(peerId) => {
                 if (visibleDiscoveredPeople.some((p) => p.id === peerId)) {
                   setActiveDiscoveryChatId(peerId);

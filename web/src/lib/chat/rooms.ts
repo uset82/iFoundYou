@@ -11,6 +11,8 @@ import { rowToStatus } from './realtimeChat';
 export interface ChatRoom {
   id: string;
   name: string;
+  type: string;
+  psk: string | null;
   createdBy: string;
   createdAt: string;
 }
@@ -32,12 +34,14 @@ export interface RoomMessageView {
   transport: Transport;
 }
 
-const ROOM_SELECT = 'id, name, created_by, created_at';
+const ROOM_SELECT = 'id, name, type, psk, created_by, created_at';
 
 function rowToRoom(row: any): ChatRoom {
   return {
     id: row.id,
     name: row.name,
+    type: row.type ?? 'internet',
+    psk: row.psk ?? null,
     createdBy: row.created_by,
     createdAt: row.created_at,
   };
@@ -70,6 +74,8 @@ export async function createRoom(
   creatorId: string,
   name: string,
   inviteeIds: string[],
+  type: string = 'internet',
+  psk: string | null = null,
 ): Promise<{ room?: ChatRoom; error?: string }> {
   if (!hasSupabaseConfig) return { error: 'Supabase config missing.' };
 
@@ -78,7 +84,7 @@ export async function createRoom(
 
   const { data: roomRow, error: roomErr } = await supabase
     .from('chat_rooms')
-    .insert({ name: trimmedName, created_by: creatorId })
+    .insert({ name: trimmedName, created_by: creatorId, type, psk })
     .select(ROOM_SELECT)
     .single();
   if (roomErr || !roomRow) return { error: roomErr?.message ?? 'Could not create room.' };
@@ -97,6 +103,41 @@ export async function createRoom(
       room: rowToRoom(roomRow),
     };
   }
+
+  return { room: rowToRoom(roomRow) };
+}
+
+/**
+ * Join an existing mesh channel using a PSK.
+ * If the room doesn't exist locally (from an offline QR code), this will attempt to upsert it
+ * if we allow that, but typically the room must exist on the Supabase side for online sync.
+ * For offline-only mesh channels, we might rely entirely on local state, but the current design
+ * syncs channels via Supabase when online.
+ */
+export async function joinRoomWithPsk(
+  userId: string,
+  roomId: string,
+  psk: string,
+  name: string,
+  type: string
+): Promise<{ error?: string; room?: ChatRoom }> {
+  if (!hasSupabaseConfig) return { error: 'Supabase config missing.' };
+
+  // Note: if the user is offline, we'd need to insert this into an offline queue or idb.
+  // For MVP, we insert via Supabase and assume they are online, or it fails.
+  const { data: roomRow, error: roomErr } = await supabase
+    .from('chat_rooms')
+    .upsert({ id: roomId, name, psk, type, created_by: userId }, { onConflict: 'id' })
+    .select(ROOM_SELECT)
+    .single();
+
+  if (roomErr || !roomRow) return { error: roomErr?.message ?? 'Could not join channel.' };
+
+  const { error: memberErr } = await supabase
+    .from('chat_room_members')
+    .upsert({ room_id: roomId, user_id: userId, role: 'member' }, { onConflict: 'room_id,user_id' });
+
+  if (memberErr) return { error: memberErr.message };
 
   return { room: rowToRoom(roomRow) };
 }

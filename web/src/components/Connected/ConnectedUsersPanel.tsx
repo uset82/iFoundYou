@@ -8,6 +8,8 @@ interface FriendItem {
   updatedAt: string | null;
   lat: number | null;
   lon: number | null;
+  isGateway?: boolean;
+  isEmergencyContact?: boolean;
 }
 
 interface DiscoveredItem extends FriendItem {
@@ -18,12 +20,14 @@ interface ConnectedUsersPanelProps {
   friends: FriendItem[];
   discovered: DiscoveredItem[];
   onOpenChat?: (userId: string) => void;
+  onToggleEmergencyContact?: (userId: string, isEmergency: boolean) => void;
 }
 
 export default function ConnectedUsersPanel({
   friends,
   discovered,
   onOpenChat,
+  onToggleEmergencyContact,
 }: ConnectedUsersPanelProps) {
   const all = useMemo(() => {
     type Row = {
@@ -32,6 +36,8 @@ export default function ConnectedUsersPanel({
       updatedAt: string | null;
       role: 'friend' | 'discoverable';
       distanceM?: number;
+      isGateway?: boolean;
+      isEmergencyContact?: boolean;
     };
 
     const seen = new Set<string>();
@@ -45,6 +51,8 @@ export default function ConnectedUsersPanel({
           name: friend.name,
           updatedAt: friend.updatedAt,
           role: 'friend',
+          isGateway: friend.isGateway,
+          isEmergencyContact: friend.isEmergencyContact,
         });
       }
     }
@@ -57,15 +65,18 @@ export default function ConnectedUsersPanel({
           updatedAt: person.updatedAt,
           role: 'discoverable',
           distanceM: person.distance_m,
+          isGateway: person.isGateway,
+          isEmergencyContact: person.isEmergencyContact,
         });
       }
     }
 
-    // Sort: online first, then friends before discoverable, then alphabetical
+    // Sort: Emergency Contacts first, then online first, then friends before discoverable, then alphabetical
     const presenceWeight = (state: ReturnType<typeof getPresence>) =>
       state === 'online' ? 0 : state === 'away' ? 1 : 2;
 
     return rows.sort((a, b) => {
+      if (a.isEmergencyContact !== b.isEmergencyContact) return a.isEmergencyContact ? -1 : 1;
       const pa = presenceWeight(getPresence(a.updatedAt));
       const pb = presenceWeight(getPresence(b.updatedAt));
       if (pa !== pb) return pa - pb;
@@ -105,30 +116,48 @@ export default function ConnectedUsersPanel({
               return (
                 <div key={row.id} className="connected-row">
                   <div className="connected-row__main">
-                    <strong>
+                    <strong style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                       <span
                         className={`presence-dot presence-${presence}`}
                         aria-label={`status: ${presence}`}
                       />
                       {row.name}
+                      {row.isEmergencyContact && <span title="Emergency Contact">⭐</span>}
                     </strong>
                     <span className="muted connected-row__meta">
                       <span className={`connected-tag tag-${row.role}`}>
                         {row.role === 'friend' ? 'Friend' : 'Nearby'}
                       </span>
+                      {row.isGateway && (
+                        <span className="connected-tag tag-gateway" style={{ backgroundColor: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa', marginLeft: '6px' }}>
+                          Bridge Active
+                        </span>
+                      )}
                       {distanceLabel && <span> · {distanceLabel}</span>}
                       <span> · {lastSeen}</span>
                     </span>
                   </div>
-                  {onOpenChat && (
-                    <button
-                      type="button"
-                      className="ghost small"
-                      onClick={() => onOpenChat(row.id)}
-                    >
-                      Chat
-                    </button>
-                  )}
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    {onToggleEmergencyContact && row.role === 'friend' && (
+                      <button
+                        type="button"
+                        className="ghost small"
+                        onClick={() => onToggleEmergencyContact(row.id, !row.isEmergencyContact)}
+                        title={row.isEmergencyContact ? "Remove from emergency contacts" : "Mark as emergency contact"}
+                      >
+                        {row.isEmergencyContact ? 'Unstar' : 'Star'}
+                      </button>
+                    )}
+                    {onOpenChat && (
+                      <button
+                        type="button"
+                        className="ghost small"
+                        onClick={() => onOpenChat(row.id)}
+                      >
+                        Chat
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}

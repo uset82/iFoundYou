@@ -14,12 +14,14 @@ interface ProfileRow {
   avatar_url: string | null;
   contact_email: string | null;
   contact_phone: string | null;
+  is_gateway: boolean | null;
 }
 
 export default function ProfilePanel({ userId, email, onSignOut }: ProfilePanelProps) {
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [displayName, setDisplayName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
+  const [isGateway, setIsGateway] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -38,7 +40,7 @@ export default function ProfilePanel({ userId, email, onSignOut }: ProfilePanelP
     const load = async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, display_name, avatar_url, contact_email, contact_phone')
+        .select('id, display_name, avatar_url, contact_email, contact_phone, is_gateway')
         .eq('id', userId)
         .maybeSingle();
       if (cancelled) return;
@@ -53,10 +55,12 @@ export default function ProfilePanel({ userId, email, onSignOut }: ProfilePanelP
           avatar_url: null,
           contact_email: null,
           contact_phone: null,
+          is_gateway: false,
         };
       setProfile(row);
       setDisplayName(row.display_name ?? '');
       setAvatarUrl(row.avatar_url ?? '');
+      setIsGateway(row.is_gateway ?? false);
     };
 
     void load();
@@ -79,6 +83,7 @@ export default function ProfilePanel({ userId, email, onSignOut }: ProfilePanelP
         id: userId,
         display_name: displayName.trim() || null,
         avatar_url: avatarUrl.trim() || null,
+        is_gateway: isGateway,
       },
       { onConflict: 'id' },
     );
@@ -95,6 +100,7 @@ export default function ProfilePanel({ userId, email, onSignOut }: ProfilePanelP
             ...prev,
             display_name: displayName.trim() || null,
             avatar_url: avatarUrl.trim() || null,
+            is_gateway: isGateway,
           }
         : prev,
     );
@@ -144,6 +150,18 @@ export default function ProfilePanel({ userId, email, onSignOut }: ProfilePanelP
               disabled={busy}
             />
           </label>
+          <label className="field checkbox-field">
+            <input
+              type="checkbox"
+              checked={isGateway}
+              onChange={(e) => setIsGateway(e.target.checked)}
+              disabled={busy}
+            />
+            <span>Enable Gateway Mode</span>
+          </label>
+          <p className="muted profile-account-hint">
+            If you have an internet connection and a Mesh node, enabling this will broadcast internet emergency messages into the local mesh.
+          </p>
           <div className="profile-actions">
             <button
               className="primary"

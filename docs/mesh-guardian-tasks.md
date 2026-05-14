@@ -148,24 +148,24 @@ This checklist tracks the Dommedag evolution into a survival messenger that work
 
 ## Phase 7 — Bridge Mode
 
-- [ ] **7.1** Add a `is_gateway` flag on user profile (Supabase column)
-- [ ] **7.2** Gateway users with both internet + a connected Meshtastic node relay messages between sources
-- [ ] **7.3** Server-side Netlify Function `/api/mesh-bridge` accepts internet messages addressed to off-grid users
-- [ ] **7.4** Gateway client polls bridge endpoint and forwards messages to Meshtastic
-- [ ] **7.5** Reverse direction: gateway forwards mesh-received messages back to internet via Supabase
-- [ ] **7.6** Display a "Bridge active" badge on the gateway user's profile
+- [x] **7.1** Add a `is_gateway` flag on user profile (Supabase column)
+- [x] **7.2** Gateway users with both internet + a connected Meshtastic node relay messages between sources
+- [x] **7.3** Server-side Netlify Function `/api/mesh-bridge` accepts internet messages addressed to off-grid users
+- [x] **7.4** Gateway client polls bridge endpoint and forwards messages to Meshtastic
+- [x] **7.5** Reverse direction: gateway forwards mesh-received messages back to internet via Supabase
+- [x] **7.6** Display a "Bridge active" badge on the gateway user's profile
 
 ---
 
 ## Phase 8 — Groups & Emergency Channels
 
-- [ ] **8.1** Create channel types: `family`, `neighborhood`, `medical`, `security`, `broadcast`
-- [ ] **8.2** Add channel keys (PSK) for private mesh channels — generate via `crypto.subtle`
-- [ ] **8.3** Build "Channel" management UI with create / join / leave actions
-- [ ] **8.4** Generate QR-code invitation links containing channel key + name
-- [ ] **8.5** Add a QR scanner using `@yudiel/react-qr-scanner` to join via QR
-- [ ] **8.6** Build emergency contact list (favorites that always show on top)
-- [ ] **8.7** Default channels seeded for new users: `family`, `neighborhood`
+- [x] **8.1** Create channel types: `family`, `neighborhood`, `medical`, `security`, `broadcast`
+- [x] **8.2** Add channel keys (PSK) for private mesh channels — generate via `crypto.subtle`
+- [x] **8.3** Build "Channel" management UI with create / join / leave actions
+- [x] **8.4** Generate QR-code invitation links containing channel key + name
+- [x] **8.5** Add a QR scanner using `@yudiel/react-qr-scanner` to join via QR
+- [x] **8.6** Build emergency contact list (favorites that always show on top)
+- [x] **8.7** Default channels seeded for new users: `family`, `neighborhood`
 
 **Goal:** each family or neighborhood can use private emergency mesh channels.
 
@@ -174,12 +174,12 @@ This checklist tracks the Dommedag evolution into a survival messenger that work
 ## Phase 9 — PWA & Mobile Polish
 
 - [x] **9.1** Add a Web App Manifest (`manifest.webmanifest`) with app icons + theme colors
-- [ ] **9.2** Add a service worker via `vite-plugin-pwa` for offline asset caching
-- [ ] **9.3** Cache the app shell + last 7 days of chat data
-- [ ] **9.4** Add "Install App" prompt on Android Chrome
-- [ ] **9.5** Add iOS Safari "Add to Home Screen" instructions (component built — wire it in)
-- [ ] **9.6** Test offline behavior end-to-end (kill network, send messages, restore)
-- [ ] **9.7** Mobile-responsive Discover chat (full-screen chat view on small screens, swipe-back to peer list)
+- [x] **9.2** Add a service worker via `vite-plugin-pwa` for offline asset caching
+- [x] **9.3** Cache the app shell + last 7 days of chat data
+- [x] **9.4** Add "Install App" prompt on Android Chrome
+- [x] **9.5** Add iOS Safari "Add to Home Screen" instructions (component built — wire it in)
+- [x] **9.6** Test offline behavior end-to-end (kill network, send messages, restore)
+- [x] **9.7** Mobile-responsive Discover chat (full-screen chat view on small screens, swipe-back to peer list)
 
 ---
 
