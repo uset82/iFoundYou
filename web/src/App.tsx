@@ -19,6 +19,7 @@ import GroupChatPanel from './components/GroupChat/GroupChatPanel';
 import NewGroupModal from './components/GroupChat/NewGroupModal';
 import ProfilePanel from './components/Profile/ProfilePanel';
 import ConnectedUsersPanel from './components/Connected/ConnectedUsersPanel';
+import MeshConnectModal from './components/MeshGuardian/MeshConnectModal';
 import WifiPanel from './components/Wifi/WifiPanel';
 
 type PositionState = {
@@ -233,6 +234,7 @@ export default function App() {
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [showNewGroupModal, setShowNewGroupModal] = useState(false);
+  const [showMeshModal, setShowMeshModal] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [notificationsError, setNotificationsError] = useState<string | null>(
     null
@@ -1406,6 +1408,9 @@ export default function App() {
         }}
       />
     )}
+    {showMeshModal && (
+      <MeshConnectModal onClose={() => setShowMeshModal(false)} />
+    )}
     <div
       className={`app-shell ${isMeshView ? 'mesh-mode' : ''} ${
         showRail ? 'with-rail' : 'no-rail'
@@ -1444,6 +1449,14 @@ export default function App() {
                 {outboxSync.syncing ? ' — syncing…' : ''}
               </button>
             )}
+            <button
+              type="button"
+              className="brand__mesh-pill"
+              onClick={() => setShowMeshModal(true)}
+              title="Pair a Meshtastic Bluetooth device"
+            >
+              📡 Pair Meshtastic
+            </button>
           </div>
         </div>
         <nav className="nav">
@@ -1666,7 +1679,6 @@ export default function App() {
               <h2>Alerts</h2>
               <p className="muted">Emergency broadcasts and proximity notifications.</p>
             </div>
-            {!isAuthed && authCard}
             <div className="panel-grid">
               <EWSPanel />
 

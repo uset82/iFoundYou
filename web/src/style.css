@@ -1352,3 +1352,25 @@ button.small {
   opacity: 0.6;
   cursor: progress;
 }
+
+
+/* Meshtastic pair pill (Phase 4.5) */
+.brand__mesh-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(58, 198, 255, 0.35);
+  background: rgba(58, 198, 255, 0.1);
+  color: #3ac6ff;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.brand__mesh-pill:hover {
+  background: rgba(58, 198, 255, 0.18);
+}

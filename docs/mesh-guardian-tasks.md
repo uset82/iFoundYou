@@ -99,18 +99,18 @@ This checklist tracks the iFoundYou evolution into a survival messenger that wor
 ## Phase 4 — Meshtastic Web Bluetooth Transport
 
 - [x] Confirm Meshtastic has official JavaScript/web packages for core, Web Bluetooth, Web Serial, HTTP, and protobufs
-- [ ] **4.1** Install `@meshtastic/core` and `@meshtastic/transport-web-bluetooth` from npm
-- [ ] **4.2** Create `web/src/lib/mesh/transports/` directory
-- [ ] **4.3** Create `MeshTransport.ts` interface: `name`, `isAvailable()`, `connect()`, `sendMessage()`, `onMessage()`, `disconnect()`
-- [ ] **4.4** Implement `BluetoothMeshTransport.ts` wrapping Meshtastic's BLE transport
-- [ ] **4.5** Add a "Connect Meshtastic Device" button in the Mesh view
-- [ ] **4.6** Show device picker via `navigator.bluetooth.requestDevice()`
-- [ ] **4.7** Read node info (firmware version, my-node-id, channel list) on connect
-- [ ] **4.8** Subscribe to incoming `FromRadio` packets, decode protobuf, surface in chat UI
-- [ ] **4.9** Send a test ToRadio text message from a UI button
-- [ ] **4.10** Add automatic reconnect on disconnect (max 3 attempts, exponential backoff)
-- [ ] **4.11** Detect Web Bluetooth support (`'bluetooth' in navigator`); disable button on iOS Safari
-- [ ] **4.12** Display connection status pill: **Disconnected** | **Connecting** | **Connected (Node X)**
+- [x] **4.1** Install `@meshtastic/core` and `@meshtastic/transport-web-bluetooth` from npm
+- [x] **4.2** Create `web/src/lib/mesh/transports/` directory
+- [x] **4.3** Create `MeshTransport.ts` interface: `name`, `isAvailable()`, `connect()`, `sendMessage()`, `onMessage()`, `disconnect()`
+- [x] **4.4** Implement `BluetoothMeshTransport.ts` wrapping Meshtastic's BLE transport
+- [x] **4.5** Add a "Connect Meshtastic Device" button in the Mesh view
+- [x] **4.6** Show device picker via `navigator.bluetooth.requestDevice()`
+- [x] **4.7** Read node info (firmware version, my-node-id, channel list) on connect
+- [x] **4.8** Subscribe to incoming `FromRadio` packets, decode protobuf, surface in chat UI
+- [x] **4.9** Send a test ToRadio text message from a UI button
+- [x] **4.10** Add automatic reconnect on disconnect (max 3 attempts, exponential backoff)
+- [x] **4.11** Detect Web Bluetooth support (`'bluetooth' in navigator`); disable button on iOS Safari
+- [x] **4.12** Display connection status pill: **Disconnected** | **Connecting** | **Connected (Node X)**
 
 **Goal:** Android Chrome and desktop Chromium users can send emergency messages through a Meshtastic node.
 
@@ -291,4 +291,4 @@ The repo already has a `MultipeerManager` stub in `web/src/lib/mesh/multipeer.ts
 
 ## Progress Snapshot
 
-Overall: **56 / ~163 tasks complete** (~34%). **Phase 0–3: complete.** Phases 0 (Discover Polish), 1 (Real-time Internet Chat), 2 (Offline-First IndexedDB), 3 (Emergency Message Protocol) are all 100% done. Next: Phase 4 — Meshtastic Web Bluetooth.
+Overall: **68 / ~163 tasks complete** (~42%). **Phase 0–4: complete.** Phases 0 (Discover Polish), 1 (Real-time Internet Chat), 2 (Offline-First IndexedDB), 3 (Emergency Message Protocol), 4 (Meshtastic Web Bluetooth) are all 100% done. Next: Phase 5 — Meshtastic HTTP Mode (ESP32).
