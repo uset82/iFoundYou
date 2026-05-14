@@ -1393,3 +1393,69 @@ button.small {
 .brand__mesh-pill:hover {
   background: rgba(58, 198, 255, 0.18);
 }
+
+/* ─────────────────────────────────────────
+   Connect hub + sub-navigation (UX refactor)
+───────────────────────────────────────── */
+.connect-hub {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.connect-subnav {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 4px 2px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 12px;
+}
+
+.connect-subnav::-webkit-scrollbar {
+  display: none;
+}
+
+.subnav-item {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: 'Space Grotesk', sans-serif;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+
+.subnav-item.is-active {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(245, 200, 75, 0.2);
+}
+
+.subnav-item:hover:not(.is-active) {
+  border-color: rgba(255, 255, 255, 0.25);
+  color: var(--fg);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+@media (max-width: 700px) {
+  .connect-subnav {
+    gap: 6px;
+  }
+  .subnav-item {
+    padding: 7px 12px;
+    font-size: 0.78rem;
+  }
+}

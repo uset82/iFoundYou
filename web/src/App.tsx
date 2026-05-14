@@ -197,10 +197,11 @@ export default function App() {
 
   const lastDiscoveryFetchRef = useRef<number>(0);
 
-  const [view, setView] = useState<
-    'map' | 'alerts' | 'discover' | 'share' | 'mesh' | 'wifi' | 'groups' | 'profile' | 'connected'
-  >('map');
-  const showRail = view === 'discover' || view === 'share' || view === 'groups';
+  const [view, setView] = useState<'map' | 'alerts' | 'connect' | 'wifi' | 'mesh'>('map');
+  const [connectSubView, setConnectSubView] = useState<
+    'discover' | 'connected' | 'groups' | 'share' | 'profile' | 'mesh'
+  >('discover');
+  const showRail = view === 'connect' && (connectSubView === 'discover' || connectSubView === 'share' || connectSubView === 'groups');
   const isMeshView = view === 'mesh';
 
   const [sharing, setSharing] = useState(false);
@@ -1441,7 +1442,8 @@ export default function App() {
           setRooms((prev) => [room, ...prev]);
           setActiveRoomId(room.id);
           setShowNewGroupModal(false);
-          setView('groups');
+          setView('connect');
+          setConnectSubView('groups');
         }}
       />
     )}
@@ -1503,63 +1505,35 @@ export default function App() {
             className={`nav-item ${view === 'map' ? 'is-active' : ''}`}
             onClick={() => setView('map')}
           >
-            Map
+            🗺️ Map
           </button>
           <button
             type="button"
             className={`nav-item ${view === 'alerts' ? 'is-active' : ''}`}
             onClick={() => setView('alerts')}
           >
-            Alerts
+            🚨 Alerts
           </button>
           <button
             type="button"
-            className={`nav-item ${view === 'discover' ? 'is-active' : ''}`}
-            onClick={() => setView('discover')}
+            className={`nav-item ${view === 'connect' ? 'is-active' : ''}`}
+            onClick={() => setView('connect')}
           >
-            Discover
-          </button>
-          <button
-            type="button"
-            className={`nav-item ${view === 'connected' ? 'is-active' : ''}`}
-            onClick={() => setView('connected')}
-          >
-            Connected
-          </button>
-          <button
-            type="button"
-            className={`nav-item ${view === 'groups' ? 'is-active' : ''}`}
-            onClick={() => setView('groups')}
-          >
-            Groups
-          </button>
-          <button
-            type="button"
-            className={`nav-item ${view === 'share' ? 'is-active' : ''}`}
-            onClick={() => setView('share')}
-          >
-            Share
-          </button>
-          <button
-            type="button"
-            className={`nav-item ${view === 'profile' ? 'is-active' : ''}`}
-            onClick={() => setView('profile')}
-          >
-            Profile
-          </button>
-          <button
-            type="button"
-            className={`nav-item ${view === 'mesh' ? 'is-active' : ''}`}
-            onClick={() => setView('mesh')}
-          >
-            Mesh
+            👥 Connect
           </button>
           <button
             type="button"
             className={`nav-item ${view === 'wifi' ? 'is-active' : ''}`}
             onClick={() => setView('wifi')}
           >
-            WiFi
+            📶 WiFi
+          </button>
+          <button
+            type="button"
+            className={`nav-item ${view === 'mesh' ? 'is-active' : ''}`}
+            onClick={() => setView('mesh')}
+          >
+            📡 Mesh
           </button>
         </nav>
         <div className="share-card">
@@ -1652,7 +1626,7 @@ export default function App() {
                 <span className="pill">Friends online: {friends.length}</span>
                 <button
                   className="ghost small"
-                  onClick={() => setView('share')}
+                  onClick={() => { setView('connect'); setConnectSubView('share'); }}
                 >
                   Share
                 </button>
@@ -1847,14 +1821,37 @@ export default function App() {
           </section>
         )}
 
-        {view === 'discover' && (
-          <section className="discover-panel">
-            <div className="panel-header">
-              <h2>Discover</h2>
-              <p className="muted">Find people nearby who are open to connecting.</p>
-            </div>
+        {view === 'connect' && (
+          <section className="connect-hub">
+            {/* Sub-navigation */}
+            <nav className="connect-subnav">
+              {(
+                [
+                  { key: 'discover', label: '🔍 Discover' },
+                  { key: 'connected', label: '👥 Connected' },
+                  { key: 'groups', label: '💬 Groups' },
+                  { key: 'share', label: '🔗 Share' },
+                  { key: 'profile', label: '👤 Profile' },
+                  { key: 'mesh', label: '📡 Mesh' },
+                ] as const
+              ).map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={`subnav-item ${connectSubView === key ? 'is-active' : ''}`}
+                  onClick={() => setConnectSubView(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </nav>
+
+            {/* Auth form — shown once at top when not signed in */}
             {!isAuthed && authCard}
-            <div className="panel-grid">
+
+            {/* ── DISCOVER ── */}
+            {connectSubView === 'discover' && (
+              <div className="panel-grid">
               {isAuthed && (
                 <div className="card discover-card">
                   <div>
@@ -1987,12 +1984,12 @@ export default function App() {
                   />
                 </div>
               )}
-            </div>
-          </section>
-        )}
+              </div>
+            )}
 
-        {view === 'groups' && (
-          <section className="groups-panel">
+            {/* ── GROUPS ── */}
+            {connectSubView === 'groups' && isAuthed && (
+              <>
             <div className="panel-header panel-header-row">
               <div>
                 <h2>Groups</h2>
@@ -2057,22 +2054,16 @@ export default function App() {
                 )}
               </div>
             )}
-            
+
             {isAuthed && session?.user && (
               <ChannelManager userId={session.user.id} />
             )}
-          </section>
-        )}
+            </>
+            )}
 
-        {view === 'share' && (
-          <section className="share-panel">
-            <div className="panel-header">
-              <h2>Share</h2>
-              <p className="muted">Invite friends and control contact matching.</p>
-            </div>
-            {!isAuthed && authCard}
-            <div className="panel-grid">
-              {isAuthed && (
+            {/* ── SHARE ── */}
+            {connectSubView === 'share' && isAuthed && (
+              <div className="panel-grid">
                 <div className="card contact-card invite-card">
                   <h3>Find friends from contacts</h3>
                   <p className="muted">
@@ -2150,9 +2141,7 @@ export default function App() {
                     </div>
                   )}
                 </div>
-              )}
 
-              {isAuthed && (
                 <div className="card">
                   <h3>Share Dommedag</h3>
                   <p className="muted">Send the app link to people you trust.</p>
@@ -2171,9 +2160,7 @@ export default function App() {
                     </button>
                   </div>
                 </div>
-              )}
 
-              {isAuthed && (
                 <div className="card settings-card">
                   <h3>Contact matching</h3>
                   <p className="muted">
@@ -2212,9 +2199,7 @@ export default function App() {
                     <p className="error">{contactSettingsError}</p>
                   )}
                 </div>
-              )}
 
-              {isAuthed && (
                 <div className="card profile-card">
                   <p>
                     Signed in as <strong>{session?.user?.email}</strong>
@@ -2223,16 +2208,14 @@ export default function App() {
                     Sign out
                   </button>
                 </div>
-              )}
-            </div>
-          </section>
-        )}
+              </div>
+            )}
 
-        {view === 'connected' && (
-          isAuthed ? (
-            <ConnectedUsersPanel
-              friends={friends}
-              discovered={visibleDiscoveredPeople}
+            {/* ── CONNECTED ── */}
+            {connectSubView === 'connected' && isAuthed && (
+              <ConnectedUsersPanel
+                friends={friends}
+                discovered={visibleDiscoveredPeople}
               onToggleEmergencyContact={async (friendId, isEmergency) => {
                 if (!session?.user?.id) return;
                 const { error } = await supabase
@@ -2246,43 +2229,42 @@ export default function App() {
               onOpenChat={(peerId) => {
                 if (visibleDiscoveredPeople.some((p) => p.id === peerId)) {
                   setActiveDiscoveryChatId(peerId);
-                  setView('discover');
+                  setView('connect');
+                  setConnectSubView('discover');
                   return;
                 }
                 if (friends.some((f) => f.id === peerId)) {
-                  // Friends share the same ChatWindow surface in Discover
                   setActiveDiscoveryChatId(peerId);
-                  setView('discover');
+                  setView('connect');
+                  setConnectSubView('discover');
                 }
               }}
             />
-          ) : (
-            <section className="connected-panel">
-              <div className="panel-header">
-                <h2>Connected users</h2>
-                <p className="muted">Sign in to see your network.</p>
-              </div>
-              {authCard}
-            </section>
-          )
-        )}
+            )}
 
-        {view === 'profile' && (
-          isAuthed && session?.user ? (
-            <ProfilePanel
-              userId={session.user.id}
-              email={session.user.email ?? null}
-              onSignOut={signOut}
-            />
-          ) : (
-            <section className="profile-panel">
-              <div className="panel-header">
-                <h2>Profile</h2>
-                <p className="muted">Sign in to manage your profile.</p>
-              </div>
-              {authCard}
-            </section>
-          )
+            {/* ── PROFILE ── */}
+            {connectSubView === 'profile' && isAuthed && session?.user && (
+              <ProfilePanel
+                userId={session.user.id}
+                email={session.user.email ?? null}
+                onSignOut={signOut}
+              />
+            )}
+
+            {/* ── MESH (works anon) ── */}
+            {connectSubView === 'mesh' && (
+              <EmergencyChat
+                userId={session?.user?.id ?? 'anon-' + Math.random().toString(36).substr(2, 9)}
+                userName={session?.user?.email?.split('@')[0] ?? 'Anonymous'}
+                isAuthed={isAuthed}
+                friends={friends.map((friend) => ({
+                  id: friend.id,
+                  name: friend.name,
+                }))}
+                onClose={() => setConnectSubView('discover')}
+              />
+            )}
+          </section>
         )}
 
         {view === 'mesh' && (
@@ -2302,7 +2284,7 @@ export default function App() {
       </main>
       {showRail && (
         <aside className="rail">
-          {view === 'discover' && (
+          {view === 'connect' && connectSubView === 'discover' && (
             <>
               <div className="rail-header">
                 <h2>Discovery tips</h2>
@@ -2316,7 +2298,7 @@ export default function App() {
             </>
           )}
 
-          {view === 'share' && (
+          {view === 'connect' && connectSubView === 'share' && (
             <>
               <div className="rail-header">
                 <h2>Share tips</h2>
@@ -2337,56 +2319,35 @@ export default function App() {
           className={`nav-item ${view === 'map' ? 'is-active' : ''}`}
           onClick={() => setView('map')}
         >
-          Map
+          🗺️ Map
         </button>
         <button
           type="button"
           className={`nav-item ${view === 'alerts' ? 'is-active' : ''}`}
           onClick={() => setView('alerts')}
         >
-          Alerts
+          🚨 Alerts
         </button>
         <button
           type="button"
-          className={`nav-item ${view === 'discover' ? 'is-active' : ''}`}
-          onClick={() => setView('discover')}
+          className={`nav-item ${view === 'connect' ? 'is-active' : ''}`}
+          onClick={() => setView('connect')}
         >
-          Discover
-        </button>
-        <button
-          type="button"
-          className={`nav-item ${view === 'connected' ? 'is-active' : ''}`}
-          onClick={() => setView('connected')}
-        >
-          Connected
-        </button>
-        <button
-          type="button"
-          className={`nav-item ${view === 'groups' ? 'is-active' : ''}`}
-          onClick={() => setView('groups')}
-        >
-          Groups
-        </button>
-        <button
-          type="button"
-          className={`nav-item ${view === 'mesh' ? 'is-active' : ''}`}
-          onClick={() => setView('mesh')}
-        >
-          Mesh
+          👥 Connect
         </button>
         <button
           type="button"
           className={`nav-item ${view === 'wifi' ? 'is-active' : ''}`}
           onClick={() => setView('wifi')}
         >
-          WiFi
+          📡 WiFi
         </button>
         <button
           type="button"
-          className={`nav-item ${view === 'profile' ? 'is-active' : ''}`}
-          onClick={() => setView('profile')}
+          className={`nav-item ${view === 'mesh' ? 'is-active' : ''}`}
+          onClick={() => setView('mesh')}
         >
-          Profile
+          📡 Mesh
         </button>
       </nav>
     </div>
