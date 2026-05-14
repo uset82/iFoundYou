@@ -1,0 +1,72 @@
+.profile-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.profile-card-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.profile-card-grid h3 {
+  margin: 0;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.05rem;
+}
+
+.profile-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.profile-save-hint {
+  font-size: 0.8rem;
+  color: #22c55e;
+}
+
+.profile-account-row {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+}
+
+.profile-account-row .muted {
+  font-size: 0.78rem;
+}
+
+.profile-account-row strong {
+  word-break: break-all;
+}
+
+.profile-userid {
+  font-family: monospace;
+  font-size: 0.75rem;
+  background: var(--bg-soft);
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  word-break: break-all;
+}
+
+.profile-account-hint {
+  grid-column: 2 / 4;
+  margin-top: -2px;
+  font-size: 0.72rem;
+  font-style: italic;
+}
+
+@media (max-width: 600px) {
+  .profile-account-row {
+    grid-template-columns: 1fr;
+  }
+  .profile-account-hint {
+    grid-column: 1 / -1;
+  }
+}

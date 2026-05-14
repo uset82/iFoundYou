@@ -1,0 +1,73 @@
+.connected-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.connected-list-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.connected-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.connected-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.connected-row__main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.connected-row__main strong {
+  display: flex;
+  align-items: center;
+  font-size: 0.92rem;
+}
+
+.connected-row__meta {
+  font-size: 0.78rem;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0;
+}
+
+.connected-tag {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  margin-right: 4px;
+}
+
+.connected-tag.tag-friend {
+  color: #f5c84b;
+  border-color: rgba(245, 200, 75, 0.45);
+  background: rgba(245, 200, 75, 0.1);
+}
+
+.connected-tag.tag-discoverable {
+  color: #3ac6ff;
+  border-color: rgba(58, 198, 255, 0.45);
+  background: rgba(58, 198, 255, 0.08);
+}

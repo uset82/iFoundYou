@@ -9,6 +9,8 @@ community alerts (water, food, medical, shelter, lost person).
 - Proximity alerts + notification feed.
 - Emergency broadcast to people nearby (community alerts).
 - Supabase Auth (email/password + Google OAuth).
+- WiFi scanner and connection tool (via local companion server).
+- MAC address spoofing and connected device discovery (for emergency/privacy use).
 
 ## Stack
 - Web: Vite + React
@@ -41,12 +43,23 @@ Fill in:
 npm --prefix web run dev
 ```
 
+4) Run WiFi Companion Server (Optional, for WiFi and MAC tools)
+```bash
+cd wifi
+pip install -r requirements.txt
+# Run as Administrator (Windows) or with sudo (Mac/Linux) for full access
+python server.py
+```
+
 ## Supabase setup
 1) Create a Supabase project.
 2) Run SQL in order:
 - `supabase/schema.sql`
 - `supabase/rls.sql`
 - `supabase/triggers.sql`
+- `supabase/blocked_users.sql` (Mesh Guardian Phase 0.7)
+- `supabase/messages_status.sql` (Mesh Guardian Phase 1.1)
+- `supabase/chat_rooms.sql` (Mesh Guardian Phase 1.7)
 
 3) Enable Google OAuth
 - Google Cloud Console: create OAuth Client ID (Web).

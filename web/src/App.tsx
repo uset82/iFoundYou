@@ -2,10 +2,24 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import maplibregl, { Marker } from 'maplibre-gl';
 import { hasSupabaseConfig, supabase } from './lib/supabase';
-import ChatList from './components/EmergencyChat/ChatList';
 import ChatWindow from './components/EmergencyChat/ChatWindow';
 import EmergencyChat from './components/EmergencyChat/EmergencyChat';
-import type { Peer } from './lib/mesh/types';
+import { EWSProvider } from './lib/EWSContext';
+import EWSPanel from './components/EWS/EWSPanel';
+import AircraftOverlay from './components/EWS/AircraftOverlay';
+import NetworkStatusBar from './components/MeshGuardian/NetworkStatusBar';
+import IosInstallTutorial from './components/MeshGuardian/IosInstallTutorial';
+import { useUnreadCounts } from './lib/chat/useUnreadCounts';
+import { useBlockedUsers } from './lib/chat/useBlockedUsers';
+import { useOutboxSync } from './lib/chat/useOutboxSync';
+import { getPresence, formatLastSeen, formatDistance as formatDistanceMeters } from './lib/chat/presence';
+import { listRooms } from './lib/chat/rooms';
+import type { ChatRoom } from './lib/chat/rooms';
+import GroupChatPanel from './components/GroupChat/GroupChatPanel';
+import NewGroupModal from './components/GroupChat/NewGroupModal';
+import ProfilePanel from './components/Profile/ProfilePanel';
+import ConnectedUsersPanel from './components/Connected/ConnectedUsersPanel';
+import WifiPanel from './components/Wifi/WifiPanel';
 
 type PositionState = {
   lat: number;
@@ -176,9 +190,9 @@ export default function App() {
   const lastDiscoveryFetchRef = useRef<number>(0);
 
   const [view, setView] = useState<
-    'map' | 'friends' | 'alerts' | 'discover' | 'share' | 'mesh'
+    'map' | 'alerts' | 'discover' | 'share' | 'mesh' | 'wifi' | 'groups' | 'profile' | 'connected'
   >('map');
-  const showRail = view !== 'map' && view !== 'mesh';
+  const showRail = view === 'discover' || view === 'share' || view === 'groups';
   const isMeshView = view === 'mesh';
 
   const [sharing, setSharing] = useState(false);
@@ -193,7 +207,6 @@ export default function App() {
   const [friends, setFriends] = useState<FriendSummary[]>([]);
   const [pendingIncoming, setPendingIncoming] = useState<FriendRequest[]>([]);
   const [pendingOutgoing, setPendingOutgoing] = useState<FriendRequest[]>([]);
-  const [friendBusy, setFriendBusy] = useState(false);
   const [contactEmailEnabled, setContactEmailEnabled] = useState(false);
   const [contactPhoneInput, setContactPhoneInput] = useState('');
   const [contactSettingsBusy, setContactSettingsBusy] = useState(false);
@@ -212,11 +225,14 @@ export default function App() {
   const [mapResults, setMapResults] = useState<MapSearchResult[]>([]);
   const [mapSearchBusy, setMapSearchBusy] = useState(false);
   const [mapSearchError, setMapSearchError] = useState<string | null>(null);
-  const [activeFriendId, setActiveFriendId] = useState<string | null>(null);
   const [discoverable, setDiscoverable] = useState(false);
   const [discoverBusy, setDiscoverBusy] = useState(false);
   const [discoverError, setDiscoverError] = useState<string | null>(null);
   const [discoveredPeople, setDiscoveredPeople] = useState<NearbyFriend[]>([]);
+  const [activeDiscoveryChatId, setActiveDiscoveryChatId] = useState<string | null>(null);
+  const [rooms, setRooms] = useState<ChatRoom[]>([]);
+  const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
+  const [showNewGroupModal, setShowNewGroupModal] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [notificationsError, setNotificationsError] = useState<string | null>(
     null
@@ -236,6 +252,7 @@ export default function App() {
   const [alertMessage, setAlertMessage] = useState('');
   const [alertRadiusKm, setAlertRadiusKm] = useState(2);
   const [alertDurationMinutes, setAlertDurationMinutes] = useState(240);
+  const [ewsOverlayVisible, setEwsOverlayVisible] = useState(false);
 
   const isAuthed = useMemo(() => Boolean(session?.user), [session]);
   const friendIdSet = useMemo(
@@ -250,20 +267,57 @@ export default function App() {
     () => new Set(pendingIncoming.map((req) => req.user_id)),
     [pendingIncoming]
   );
-  const activeFriend = useMemo(
-    () => friends.find((friend) => friend.id === activeFriendId) ?? null,
-    [friends, activeFriendId]
-  );
-  const friendPeers = useMemo<Peer[]>(
+  const activeDiscoveryChat = useMemo(
     () =>
-      friends.map((friend) => ({
-        id: friend.id,
-        displayName: friend.name,
-        connected: true,
-        lastSeen: friend.updatedAt
-          ? new Date(friend.updatedAt).getTime()
-          : Date.now(),
-      })),
+      discoveredPeople.find((person) => person.id === activeDiscoveryChatId) ??
+      null,
+    [activeDiscoveryChatId, discoveredPeople]
+  );
+
+  const discoveredPeopleIds = useMemo(
+    () => discoveredPeople.map((person) => person.id),
+    [discoveredPeople]
+  );
+  const { counts: unreadCounts } = useUnreadCounts(
+    session?.user?.id ?? null,
+    discoveredPeopleIds,
+    activeDiscoveryChatId
+  );
+  const {
+    isBlocked,
+    block: blockUser,
+    busyId: blockBusyId,
+  } = useBlockedUsers(session?.user?.id ?? null);
+
+  const outboxSync = useOutboxSync();
+
+  const visibleDiscoveredPeople = useMemo(
+    () => discoveredPeople.filter((person) => !isBlocked(person.id)),
+    [discoveredPeople, isBlocked]
+  );
+
+  // Load the user's chat rooms (Phase 1.7)
+  useEffect(() => {
+    if (!session?.user || !hasSupabaseConfig) {
+      setRooms([]);
+      return;
+    }
+    let cancelled = false;
+    void listRooms(session.user.id).then((list) => {
+      if (!cancelled) setRooms(list);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user]);
+
+  const activeRoom = useMemo(
+    () => rooms.find((r) => r.id === activeRoomId) ?? null,
+    [rooms, activeRoomId]
+  );
+
+  const friendOptions = useMemo(
+    () => friends.map((f) => ({ id: f.id, name: f.name })),
     [friends]
   );
 
@@ -558,15 +612,6 @@ export default function App() {
   useEffect(() => {
     void refreshFriends();
   }, [refreshFriends]);
-
-  useEffect(() => {
-    if (!activeFriendId) {
-      return;
-    }
-    if (!friends.some((friend) => friend.id === activeFriendId)) {
-      setActiveFriendId(null);
-    }
-  }, [activeFriendId, friends]);
 
   useEffect(() => {
     if (!session?.user) {
@@ -1157,16 +1202,6 @@ export default function App() {
     setContactSettingsBusy(false);
   };
 
-  const respondToRequest = async (requestId: string, status: string) => {
-    if (!session?.user) {
-      return;
-    }
-    setFriendBusy(true);
-    await supabase.from('friendships').update({ status }).eq('id', requestId);
-    await refreshFriends();
-    setFriendBusy(false);
-  };
-
   useEffect(() => {
     if (!position) {
       return;
@@ -1206,6 +1241,7 @@ export default function App() {
   useEffect(() => {
     if (!hasSupabaseConfig || !session?.access_token || !position) {
       setDiscoveredPeople([]);
+      setActiveDiscoveryChatId(null);
       return;
     }
 
@@ -1238,6 +1274,15 @@ export default function App() {
 
     void fetchDiscover();
   }, [position, session?.access_token]);
+
+  useEffect(() => {
+    if (!activeDiscoveryChatId) {
+      return;
+    }
+    if (!discoveredPeople.some((person) => person.id === activeDiscoveryChatId)) {
+      setActiveDiscoveryChatId(null);
+    }
+  }, [activeDiscoveryChatId, discoveredPeople]);
 
   useEffect(() => {
     if (!hasSupabaseConfig || !sharing || !position || !session?.user) {
@@ -1346,6 +1391,21 @@ export default function App() {
   ) : null;
 
   return (
+    <EWSProvider>
+    <IosInstallTutorial />
+    {showNewGroupModal && session?.user && (
+      <NewGroupModal
+        userId={session.user.id}
+        friends={friendOptions}
+        onClose={() => setShowNewGroupModal(false)}
+        onCreated={(room) => {
+          setRooms((prev) => [room, ...prev]);
+          setActiveRoomId(room.id);
+          setShowNewGroupModal(false);
+          setView('groups');
+        }}
+      />
+    )}
     <div
       className={`app-shell ${isMeshView ? 'mesh-mode' : ''} ${
         showRail ? 'with-rail' : 'no-rail'
@@ -1370,6 +1430,21 @@ export default function App() {
           <p className="subhead">
             Private, opt-in location sharing with proximity alerts.
           </p>
+          <div className="brand__status">
+            <NetworkStatusBar />
+            {outboxSync.pendingCount > 0 && (
+              <button
+                type="button"
+                className="brand__outbox-pill"
+                onClick={() => void outboxSync.sync()}
+                disabled={outboxSync.syncing}
+                title="Click to retry sending queued messages"
+              >
+                🕓 {outboxSync.pendingCount} queued
+                {outboxSync.syncing ? ' — syncing…' : ''}
+              </button>
+            )}
+          </div>
         </div>
         <nav className="nav">
           <button
@@ -1378,13 +1453,6 @@ export default function App() {
             onClick={() => setView('map')}
           >
             Map
-          </button>
-          <button
-            type="button"
-            className={`nav-item ${view === 'friends' ? 'is-active' : ''}`}
-            onClick={() => setView('friends')}
-          >
-            Friends
           </button>
           <button
             type="button"
@@ -1402,6 +1470,20 @@ export default function App() {
           </button>
           <button
             type="button"
+            className={`nav-item ${view === 'connected' ? 'is-active' : ''}`}
+            onClick={() => setView('connected')}
+          >
+            Connected
+          </button>
+          <button
+            type="button"
+            className={`nav-item ${view === 'groups' ? 'is-active' : ''}`}
+            onClick={() => setView('groups')}
+          >
+            Groups
+          </button>
+          <button
+            type="button"
             className={`nav-item ${view === 'share' ? 'is-active' : ''}`}
             onClick={() => setView('share')}
           >
@@ -1409,10 +1491,24 @@ export default function App() {
           </button>
           <button
             type="button"
+            className={`nav-item ${view === 'profile' ? 'is-active' : ''}`}
+            onClick={() => setView('profile')}
+          >
+            Profile
+          </button>
+          <button
+            type="button"
             className={`nav-item ${view === 'mesh' ? 'is-active' : ''}`}
             onClick={() => setView('mesh')}
           >
             Mesh
+          </button>
+          <button
+            type="button"
+            className={`nav-item ${view === 'wifi' ? 'is-active' : ''}`}
+            onClick={() => setView('wifi')}
+          >
+            WiFi
           </button>
         </nav>
         <div className="share-card">
@@ -1492,11 +1588,6 @@ export default function App() {
             )}
           </div>
         </div>
-        <div className="sidebar-note">
-          <p className="muted">
-            Test-only prototype. Sharing stays off until you opt in.
-          </p>
-        </div>
       </aside>
 
       <main className="main">
@@ -1515,6 +1606,11 @@ export default function App() {
                   Share
                 </button>
               </div>
+              <AircraftOverlay
+                map={mapRef.current}
+                visible={ewsOverlayVisible}
+                onToggle={() => setEwsOverlayVisible(!ewsOverlayVisible)}
+              />
               <div className="map-search">
                 <div className="map-search-bar">
                   <input
@@ -1564,74 +1660,6 @@ export default function App() {
           )}
         </section>
 
-        {view === 'friends' && (
-          <section className="friends-panel">
-            <div className="panel-header panel-header-row">
-              <div>
-                <h2>Friends</h2>
-                <p className="muted">Chat with people you trust.</p>
-              </div>
-              <button
-                className="ghost small"
-                onClick={() => setView('share')}
-              >
-                Share
-              </button>
-            </div>
-            {!isAuthed && authCard}
-            {isAuthed && (
-              <div className="friends-chat-layout">
-                <div className={`friends-chat-sidebar ${activeFriend ? 'hidden-mobile' : ''}`}>
-                  <ChatList
-                    peers={friendPeers}
-                    onSelectPeer={(peer) => setActiveFriendId(peer.id)}
-                    selectedPeerId={activeFriend?.id}
-                    title="Friends"
-                    statusLabel="friends"
-                    statusLabelSingular="friend"
-                    emptyTitle="No friends yet"
-                    emptyHint="Find friends in the Share tab."
-                  />
-                </div>
-                <div className={`friends-chat-main ${!activeFriend ? 'hidden-mobile' : ''}`}>
-                  {activeFriend ? (
-                    <>
-                      <div className="friends-chat-header">
-                        <button
-                          className="ghost small"
-                          onClick={() => setActiveFriendId(null)}
-                        >
-                          Back
-                        </button>
-                        <span className="muted">Friends</span>
-                        <button
-                          className="ghost small"
-                          onClick={() => setView('share')}
-                        >
-                          Share
-                        </button>
-                      </div>
-                      <ChatWindow
-                        userId={session?.user?.id ?? ''}
-                        userName={session?.user?.email?.split('@')[0] ?? 'You'}
-                        recipientId={activeFriend.id}
-                        recipientName={activeFriend.name}
-                        mode="web"
-                      />
-                    </>
-                  ) : (
-                    <div className="empty-state">
-                      <div className="empty-icon">CHAT</div>
-                      <h2>Select a friend to chat</h2>
-                      <p>Messages sync in real time when you are both online.</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </section>
-        )}
-
         {view === 'alerts' && (
           <section className="alerts-panel">
             <div className="panel-header">
@@ -1640,6 +1668,8 @@ export default function App() {
             </div>
             {!isAuthed && authCard}
             <div className="panel-grid">
+              <EWSPanel />
+
               {isAuthed && (
                 <div className="card emergency-card">
                   <h3>Send an alert</h3>
@@ -1796,26 +1826,187 @@ export default function App() {
                 </div>
               )}
 
-              <div className="card">
-                <h3>People nearby</h3>
-                {discoveredPeople.length === 0 ? (
-                  <p className="muted">No discoverable people within 1000m.</p>
+              <div className="card discover-people-card">
+                <h3>People connected in app</h3>
+                {visibleDiscoveredPeople.length === 0 ? (
+                  <p className="muted">No connected discoverable people within 1000m.</p>
                 ) : (
-                  <ul>
-                    {discoveredPeople.map((person) => (
-                      <li key={person.id}>
-                        {person.name}
-                        {person.distance_m !== undefined && (
-                          <span className="distance">
-                            {Math.round(person.distance_m)}m
+                  <div className="discover-people-list">
+                    {visibleDiscoveredPeople.map((person) => {
+                      const unread = unreadCounts[person.id] ?? 0;
+                      const presence = getPresence(person.updatedAt);
+                      const distanceLabel = formatDistanceMeters(person.distance_m);
+                      const lastSeen = formatLastSeen(person.updatedAt);
+                      const blocking = blockBusyId === person.id;
+                      return (
+                      <div
+                        key={person.id}
+                        className={`request-row discover-person-row ${
+                          activeDiscoveryChatId === person.id ? 'is-active' : ''
+                        }`}
+                      >
+                        <div className="contact-meta">
+                          <strong>
+                            <span className={`presence-dot presence-${presence}`} aria-label={`status: ${presence}`} />
+                            {person.name}
+                            {unread > 0 && (
+                              <span className="unread-badge" aria-label={`${unread} unread messages`}>
+                                {unread > 99 ? '99+' : unread}
+                              </span>
+                            )}
+                          </strong>
+                          <span className="muted discover-person-meta">
+                            {distanceLabel && <span>{distanceLabel}</span>}
+                            {distanceLabel && <span aria-hidden="true"> · </span>}
+                            <span>{lastSeen}</span>
                           </span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
+                        </div>
+                        <div className="contact-actions">
+                          <button
+                            type="button"
+                            className={
+                              activeDiscoveryChatId === person.id
+                                ? 'primary'
+                                : 'ghost'
+                            }
+                            onClick={() => setActiveDiscoveryChatId(person.id)}
+                          >
+                            Chat
+                            {unread > 0 && activeDiscoveryChatId !== person.id && (
+                              <span className="unread-dot" aria-hidden="true" />
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost small discover-block-btn"
+                            disabled={blocking}
+                            onClick={() => {
+                              if (window.confirm(`Block ${person.name}? They will no longer appear here.`)) {
+                                void blockUser(person.id);
+                              }
+                            }}
+                            title="Block this person"
+                          >
+                            Block
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost small discover-report-btn"
+                            disabled={blocking}
+                            onClick={() => {
+                              const reason = window.prompt(
+                                `Report ${person.name}? Briefly describe what happened (optional):`,
+                              );
+                              if (reason !== null) {
+                                void blockUser(person.id, { reason: reason || undefined, report: true });
+                              }
+                            }}
+                            title="Report and block this person"
+                          >
+                            Report
+                          </button>
+                        </div>
+                      </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
+
+              {isAuthed && activeDiscoveryChat && (
+                <div className="discover-chat-panel">
+                  <div className="discover-chat-toolbar">
+                    <span>
+                      Chatting with <strong>{activeDiscoveryChat.name}</strong>
+                    </span>
+                    <button
+                      type="button"
+                      className="ghost small"
+                      onClick={() => setActiveDiscoveryChatId(null)}
+                    >
+                      Close
+                    </button>
+                  </div>
+                  <ChatWindow
+                    userId={session?.user?.id ?? ''}
+                    userName={session?.user?.email?.split('@')[0] ?? 'You'}
+                    recipientId={activeDiscoveryChat.id}
+                    recipientName={activeDiscoveryChat.name}
+                    mode="web"
+                    position={position ? { lat: position.lat, lon: position.lon } : null}
+                  />
+                </div>
+              )}
             </div>
+          </section>
+        )}
+
+        {view === 'groups' && (
+          <section className="groups-panel">
+            <div className="panel-header panel-header-row">
+              <div>
+                <h2>Groups</h2>
+                <p className="muted">
+                  Group chats for family, neighborhood, and emergency channels.
+                </p>
+              </div>
+              {isAuthed && (
+                <button
+                  className="primary small"
+                  onClick={() => setShowNewGroupModal(true)}
+                >
+                  New group
+                </button>
+              )}
+            </div>
+
+            {!isAuthed && authCard}
+
+            {isAuthed && (
+              <div className="panel-grid">
+                <div className="card groups-list-card">
+                  <h3>Your groups</h3>
+                  {rooms.length === 0 ? (
+                    <p className="muted">
+                      No groups yet. Create one with the New group button.
+                    </p>
+                  ) : (
+                    <div className="groups-list">
+                      {rooms.map((room) => (
+                        <button
+                          key={room.id}
+                          type="button"
+                          className={`request-row groups-row ${
+                            activeRoomId === room.id ? 'is-active' : ''
+                          }`}
+                          onClick={() => setActiveRoomId(room.id)}
+                        >
+                          <div className="contact-meta">
+                            <strong>{room.name}</strong>
+                            <span className="muted">
+                              Created{' '}
+                              {new Date(room.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <span className="muted">Open ›</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {activeRoom && session?.user && (
+                  <GroupChatPanel
+                    userId={session.user.id}
+                    userName={
+                      session.user.email?.split('@')[0] ?? 'You'
+                    }
+                    room={activeRoom}
+                    onClose={() => setActiveRoomId(null)}
+                  />
+                )}
+              </div>
+            )}
           </section>
         )}
 
@@ -1983,6 +2174,53 @@ export default function App() {
           </section>
         )}
 
+        {view === 'connected' && (
+          isAuthed ? (
+            <ConnectedUsersPanel
+              friends={friends}
+              discovered={visibleDiscoveredPeople}
+              onOpenChat={(peerId) => {
+                if (visibleDiscoveredPeople.some((p) => p.id === peerId)) {
+                  setActiveDiscoveryChatId(peerId);
+                  setView('discover');
+                  return;
+                }
+                if (friends.some((f) => f.id === peerId)) {
+                  // Friends share the same ChatWindow surface in Discover
+                  setActiveDiscoveryChatId(peerId);
+                  setView('discover');
+                }
+              }}
+            />
+          ) : (
+            <section className="connected-panel">
+              <div className="panel-header">
+                <h2>Connected users</h2>
+                <p className="muted">Sign in to see your network.</p>
+              </div>
+              {authCard}
+            </section>
+          )
+        )}
+
+        {view === 'profile' && (
+          isAuthed && session?.user ? (
+            <ProfilePanel
+              userId={session.user.id}
+              email={session.user.email ?? null}
+              onSignOut={signOut}
+            />
+          ) : (
+            <section className="profile-panel">
+              <div className="panel-header">
+                <h2>Profile</h2>
+                <p className="muted">Sign in to manage your profile.</p>
+              </div>
+              {authCard}
+            </section>
+          )
+        )}
+
         {view === 'mesh' && (
           <EmergencyChat
             userId={session?.user?.id ?? 'anon-' + Math.random().toString(36).substr(2, 9)}
@@ -1995,81 +2233,11 @@ export default function App() {
             onClose={() => setView('map')}
           />
         )}
+
+        {view === 'wifi' && <WifiPanel />}
       </main>
       {showRail && (
         <aside className="rail">
-          {view === 'friends' && (
-            <>
-              <div className="rail-header">
-                <h2>Friends</h2>
-                <p className="muted">Manage requests and chat access.</p>
-              </div>
-
-              {pendingIncoming.length > 0 && (
-                <div className="card pending-list">
-                  <h3>Incoming requests</h3>
-                  {pendingIncoming.map((req) => (
-                    <div key={req.id} className="request-row">
-                      <span>{req.user_id}</span>
-                      <div className="request-actions">
-                        <button
-                          className="primary"
-                          onClick={() => respondToRequest(req.id, 'accepted')}
-                          disabled={friendBusy}
-                        >
-                          Accept
-                        </button>
-                        <button
-                          className="ghost"
-                          onClick={() => respondToRequest(req.id, 'blocked')}
-                          disabled={friendBusy}
-                        >
-                          Decline
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {pendingOutgoing.length > 0 && (
-                <div className="card pending-list">
-                  <h3>Outgoing requests</h3>
-                  {pendingOutgoing.map((req) => (
-                    <div key={req.id} className="request-row">
-                      <span>{req.friend_id}</span>
-                      <span className="muted">Pending</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-
-          {view === 'alerts' && (
-            <>
-              <div className="rail-header">
-                <h2>Alert status</h2>
-                <p className="muted">Keep location sharing on for alert accuracy.</p>
-              </div>
-              <div className="card">
-                <p className="muted">
-                  Share your location to attach accuracy and distance to alerts.
-                </p>
-                <button
-                  className="primary"
-                  onClick={startSharing}
-                  disabled={sharing || !isAuthed}
-                >
-                  Start sharing
-                </button>
-                <button className="ghost" onClick={stopSharing} disabled={!sharing}>
-                  Stop
-                </button>
-              </div>
-            </>
-          )}
-
           {view === 'discover' && (
             <>
               <div className="rail-header">
@@ -2109,13 +2277,6 @@ export default function App() {
         </button>
         <button
           type="button"
-          className={`nav-item ${view === 'friends' ? 'is-active' : ''}`}
-          onClick={() => setView('friends')}
-        >
-          Friends
-        </button>
-        <button
-          type="button"
           className={`nav-item ${view === 'alerts' ? 'is-active' : ''}`}
           onClick={() => setView('alerts')}
         >
@@ -2130,12 +2291,41 @@ export default function App() {
         </button>
         <button
           type="button"
+          className={`nav-item ${view === 'connected' ? 'is-active' : ''}`}
+          onClick={() => setView('connected')}
+        >
+          Connected
+        </button>
+        <button
+          type="button"
+          className={`nav-item ${view === 'groups' ? 'is-active' : ''}`}
+          onClick={() => setView('groups')}
+        >
+          Groups
+        </button>
+        <button
+          type="button"
           className={`nav-item ${view === 'mesh' ? 'is-active' : ''}`}
           onClick={() => setView('mesh')}
         >
           Mesh
         </button>
+        <button
+          type="button"
+          className={`nav-item ${view === 'wifi' ? 'is-active' : ''}`}
+          onClick={() => setView('wifi')}
+        >
+          WiFi
+        </button>
+        <button
+          type="button"
+          className={`nav-item ${view === 'profile' ? 'is-active' : ''}`}
+          onClick={() => setView('profile')}
+        >
+          Profile
+        </button>
       </nav>
     </div>
+    </EWSProvider>
   );
 }

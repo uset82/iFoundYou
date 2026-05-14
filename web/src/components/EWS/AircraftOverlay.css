@@ -1,0 +1,64 @@
+.ews-aircraft-toggle {
+  position: absolute;
+  top: 60px;
+  right: 12px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-elev);
+  color: var(--muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(8px);
+}
+
+.ews-aircraft-toggle:hover {
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.ews-aircraft-toggle.is-active {
+  color: var(--accent);
+  border-color: rgba(245, 200, 75, 0.3);
+  background: rgba(245, 200, 75, 0.08);
+}
+
+.ews-aircraft-toggle__icon {
+  font-size: 1rem;
+}
+
+.ews-aircraft-toggle__count {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 600;
+}
+
+/* Popup styles */
+.ews-aircraft-popup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: 'Sora', sans-serif;
+  font-size: 0.75rem;
+}
+
+.ews-aircraft-popup strong {
+  font-size: 0.8rem;
+}
+
+.ews-aircraft-popup__hex {
+  color: #9aa0a6;
+  font-family: monospace;
+  font-size: 0.7rem;
+}
+
+.ews-aircraft-popup__stats {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+  color: #9aa0a6;
+}

@@ -1,0 +1,117 @@
+.ews-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  grid-column: 1 / -1;
+}
+
+.ews-panel__top {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+}
+
+.ews-panel__title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ews-panel__title {
+  margin: 0;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ews-panel__icon {
+  font-size: 1.2rem;
+}
+
+.ews-panel__section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+  border-radius: 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+}
+
+.ews-panel__section-title {
+  margin: 0;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.ews-panel__error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 10px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  text-align: center;
+}
+
+.ews-panel__error p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #ef4444;
+}
+
+.ews-panel__expand-btn {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-weight: 500;
+  text-align: left;
+  transition: background 0.2s ease;
+}
+
+.ews-panel__expand-btn:hover {
+  background: var(--bg-soft);
+}
+
+.ews-panel__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 16px;
+  border-radius: 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+}
+
+.ews-panel__spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: ews-spin 0.8s linear infinite;
+}
+
+@keyframes ews-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

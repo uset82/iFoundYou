@@ -1,0 +1,266 @@
+/* ── WiFi Panel Styles ────────────────────────────────────── */
+
+.wifi-panel {
+  padding: 1.5rem;
+  overflow-y: auto;
+  max-height: 100%;
+}
+
+.wifi-panel .panel-header {
+  margin-bottom: 1.5rem;
+}
+
+.wifi-panel .panel-header h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.wifi-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.12), rgba(99, 102, 241, 0.10));
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  margin-bottom: 1rem;
+}
+
+.wifi-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.wifi-status-dot.connected { background: #22c55e; box-shadow: 0 0 8px rgba(34, 197, 94, 0.5); }
+.wifi-status-dot.disconnected { background: #ef4444; box-shadow: 0 0 8px rgba(239, 68, 68, 0.4); }
+.wifi-status-dot.scanning { background: #f59e0b; animation: pulse-dot 1.2s ease-in-out infinite; }
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+
+.wifi-status-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+}
+
+.wifi-status-info strong {
+  font-size: 0.95rem;
+  color: var(--text-primary, #e2e8f0);
+}
+
+.wifi-status-info span {
+  font-size: 0.8rem;
+  color: var(--text-muted, #94a3b8);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+/* ── Network List ───────────────────────────────────────── */
+
+.wifi-network-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.wifi-network-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: background 0.2s, border-color 0.2s;
+  cursor: pointer;
+}
+
+.wifi-network-row:hover {
+  background: rgba(56, 189, 248, 0.08);
+  border-color: rgba(56, 189, 248, 0.2);
+}
+
+.wifi-signal-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  width: 20px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.wifi-signal-bars .bar {
+  width: 3px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.15);
+  transition: background 0.2s;
+}
+
+.wifi-signal-bars .bar:nth-child(1) { height: 4px; }
+.wifi-signal-bars .bar:nth-child(2) { height: 7px; }
+.wifi-signal-bars .bar:nth-child(3) { height: 11px; }
+.wifi-signal-bars .bar:nth-child(4) { height: 16px; }
+
+.wifi-signal-bars.sig-1 .bar:nth-child(1) { background: #ef4444; }
+.wifi-signal-bars.sig-2 .bar:nth-child(1),
+.wifi-signal-bars.sig-2 .bar:nth-child(2) { background: #f59e0b; }
+.wifi-signal-bars.sig-3 .bar:nth-child(1),
+.wifi-signal-bars.sig-3 .bar:nth-child(2),
+.wifi-signal-bars.sig-3 .bar:nth-child(3) { background: #22c55e; }
+.wifi-signal-bars.sig-4 .bar:nth-child(1),
+.wifi-signal-bars.sig-4 .bar:nth-child(2),
+.wifi-signal-bars.sig-4 .bar:nth-child(3),
+.wifi-signal-bars.sig-4 .bar:nth-child(4) { background: #22c55e; }
+
+.wifi-network-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.wifi-network-info .ssid {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-primary, #e2e8f0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wifi-network-info .meta {
+  font-size: 0.75rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+.wifi-tag {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.wifi-tag.open {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.25);
+}
+
+.wifi-tag.encrypted {
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+/* ── MAC Section ────────────────────────────────────────── */
+
+.mac-display {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.85rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.9rem;
+  color: #38bdf8;
+  margin: 0.5rem 0;
+}
+
+.mac-display .mac-label {
+  color: var(--text-muted, #94a3b8);
+  font-family: inherit;
+  font-size: 0.8rem;
+  margin-right: 0.25rem;
+}
+
+.mac-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+/* ── Users Section ──────────────────────────────────────── */
+
+.wifi-users-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.wifi-user-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 0.85rem;
+}
+
+.wifi-user-row .user-mac {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  color: #a78bfa;
+  font-size: 0.8rem;
+}
+
+.wifi-user-row .user-ip {
+  color: var(--text-muted, #94a3b8);
+  font-size: 0.8rem;
+}
+
+/* ── Companion Banner ───────────────────────────────────── */
+
+.companion-banner {
+  padding: 1rem;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(239, 68, 68, 0.08));
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  margin-bottom: 1rem;
+}
+
+.companion-banner h4 {
+  color: #fbbf24;
+  margin: 0 0 0.35rem;
+  font-size: 0.9rem;
+}
+
+.companion-banner p {
+  font-size: 0.82rem;
+  color: var(--text-muted, #94a3b8);
+  margin: 0 0 0.5rem;
+}
+
+.companion-banner code {
+  display: block;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.35);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.8rem;
+  color: #38bdf8;
+  margin-top: 0.35rem;
+}
+
+/* ── Disclaimer ─────────────────────────────────────────── */
+
+.wifi-disclaimer {
+  font-size: 0.75rem;
+  color: var(--text-muted, #94a3b8);
+  padding: 0.75rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  margin-top: 1rem;
+  line-height: 1.5;
+}

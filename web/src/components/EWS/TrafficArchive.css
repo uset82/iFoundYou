@@ -1,0 +1,137 @@
+.ews-archive {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+}
+
+.ews-archive__header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ews-archive__title {
+  margin: 0;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.ews-archive__date-range {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.ews-archive__controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ews-archive__windows {
+  display: flex;
+  gap: 8px;
+}
+
+.ews-archive__radio {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.ews-archive__radio.is-active {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.ews-archive__radio input[type='radio'] {
+  accent-color: var(--accent);
+  margin: 0;
+}
+
+.ews-archive__legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.ews-archive__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.ews-archive__legend-line,
+.ews-archive__legend-dash,
+.ews-archive__legend-band {
+  display: inline-block;
+  width: 22px;
+  height: 3px;
+  border-radius: 999px;
+}
+
+.ews-archive__legend-dash {
+  height: 0;
+  border-top: 2px dashed rgba(255, 255, 255, 0.58);
+}
+
+.ews-archive__legend-band {
+  height: 8px;
+  background: rgba(148, 163, 184, 0.24);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.ews-archive__chart-wrap {
+  width: 100%;
+  background:
+    linear-gradient(180deg, rgba(29, 42, 57, 0.94), rgba(15, 22, 33, 0.96)),
+    var(--bg-soft);
+  border-radius: 8px;
+  padding: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+}
+
+.ews-archive__svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.ews-archive__subtitle {
+  margin: 8px 0 0;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.ews-archive__hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.ews-archive__empty {
+  padding: 32px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+}

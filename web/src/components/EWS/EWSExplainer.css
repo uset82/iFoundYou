@@ -1,0 +1,69 @@
+.ews-explainer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+
+.ews-explainer p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.ews-explainer__title {
+  margin: 8px 0 0;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.ews-explainer__title:first-child {
+  margin-top: 0;
+}
+
+.ews-explainer__attribution {
+  font-size: 0.78rem;
+  font-style: italic;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  margin-top: 4px !important;
+}
+
+.ews-explainer__attribution a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.ews-explainer__attribution a:hover {
+  color: var(--accent-strong);
+  text-decoration: underline;
+}
+
+.ews-explainer__faq {
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+}
+
+.ews-explainer__faq summary {
+  cursor: pointer;
+  color: var(--text);
+  font-weight: 500;
+  font-size: 0.85rem;
+}
+
+.ews-explainer__faq[open] summary {
+  margin-bottom: 6px;
+}
+
+.ews-explainer__faq p {
+  margin: 6px 0 0;
+  font-size: 0.8rem;
+}

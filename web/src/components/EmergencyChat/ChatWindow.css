@@ -156,3 +156,65 @@
     opacity: 0.5;
     cursor: not-allowed;
 }
+
+
+/* Message status states (Phase 1.5 / 2.7) */
+.message-status {
+    font-weight: 500;
+}
+
+.status-pending {
+    opacity: 0.6;
+    font-style: italic;
+}
+
+.status-pending::before {
+    content: '🕓 ';
+}
+
+.status-sent::before {
+    content: '✓ ';
+}
+
+.status-delivered::before {
+    content: '✓✓ ';
+}
+
+.status-read {
+    color: #3ac6ff;
+}
+
+.status-read::before {
+    content: '✓✓ ';
+}
+
+
+/* Emergency composer toggle (Phase 3.8) */
+.chat-emergency-toggle {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.chat-emergency-toggle:hover {
+    background: rgba(239, 68, 68, 0.18);
+}
+
+.chat-emergency-toggle.is-open {
+    background: #ef4444;
+    color: #ffffff;
+    border-color: #ef4444;
+}
+
+.chat-emergency-wrap {
+    padding: 12px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-elev-2);
+}

@@ -20,3 +20,7 @@ mcp-server.err.log
 supabase/image/rls/
 !mobile/.env.example
 mcp-server/
+
+*.backup
+.agents/
+skills-lock.json

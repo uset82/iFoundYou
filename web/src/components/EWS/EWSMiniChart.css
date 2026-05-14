@@ -1,0 +1,52 @@
+.ews-mini-chart {
+  width: 100%;
+  border-radius: 10px;
+  background: var(--bg-soft);
+  padding: 12px;
+  border: 1px solid var(--border);
+}
+
+.ews-mini-chart--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60px;
+}
+
+.ews-mini-chart__svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.ews-mini-chart__legend {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin-top: 8px;
+  font-size: 0.65rem;
+  color: var(--muted);
+}
+
+.ews-mini-chart__legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ews-mini-chart__legend-line {
+  display: inline-block;
+  width: 16px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+.ews-mini-chart__legend-line--actual {
+  background: var(--accent);
+}
+
+.ews-mini-chart__legend-line--expected {
+  background: rgba(255, 255, 255, 0.25);
+  border-top: 1px dashed rgba(255, 255, 255, 0.4);
+  height: 0;
+}

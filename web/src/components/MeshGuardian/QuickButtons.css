@@ -1,0 +1,60 @@
+.quick-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.quick-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 14px 10px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text);
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  min-height: 88px;
+}
+
+.quick-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: var(--qb-color, var(--border));
+}
+
+.quick-button.is-active {
+  border-color: var(--qb-color, var(--accent));
+  background: color-mix(in srgb, var(--qb-color, var(--accent)) 20%, transparent);
+  color: var(--qb-color, var(--accent));
+  box-shadow: 0 0 0 1px var(--qb-color, var(--accent));
+}
+
+.quick-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.quick-button__icon {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.quick-button__label {
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+@media (max-width: 480px) {
+  .quick-buttons {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .quick-button {
+    min-height: 78px;
+    padding: 12px 8px;
+  }
+}

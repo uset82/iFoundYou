@@ -14,10 +14,18 @@
   --accent-cool: #3ac6ff;
   --shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
   --ring: 0 0 0 1px rgba(245, 200, 75, 0.5);
+  /* iOS-friendly viewport height that handles the dynamic toolbar */
+  --app-height: 100vh;
+  --app-height: 100dvh;
 }
 
 * {
   box-sizing: border-box;
+}
+
+html {
+  /* Prevent over-scroll bounce on iOS Safari */
+  overscroll-behavior-y: none;
 }
 
 body {
@@ -27,13 +35,25 @@ body {
   background: radial-gradient(1200px 600px at 10% -10%, rgba(245, 200, 75, 0.12), transparent 60%),
     radial-gradient(900px 600px at 90% 0%, rgba(58, 198, 255, 0.14), transparent 55%),
     #0b0b0f;
-  min-height: 100vh;
+  min-height: var(--app-height);
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  /* Honor iPhone safe areas */
+  padding-top: env(safe-area-inset-top);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+}
+
+/* When running as installed PWA on iOS, expand to fill the screen */
+@media (display-mode: standalone) {
+  body {
+    background-attachment: fixed;
+  }
 }
 
 #app {
-  min-height: 100vh;
+  min-height: var(--app-height);
 }
 
 .app-shell {
@@ -189,16 +209,25 @@ body {
   background: rgba(14, 15, 20, 0.92);
   backdrop-filter: blur(16px);
   gap: 6px;
-  justify-content: space-between;
+  justify-content: flex-start;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
   z-index: 50;
 }
 
+.bottom-nav::-webkit-scrollbar {
+  display: none;
+}
+
 .bottom-nav .nav-item {
-  flex: 1;
+  flex: 0 0 auto;
   justify-content: center;
   text-align: center;
   font-size: 0.78rem;
-  padding: 8px 10px;
+  padding: 8px 14px;
+  white-space: nowrap;
 }
 
 .bottom-nav .nav-item::before {
@@ -232,13 +261,6 @@ body {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
-}
-
-.sidebar-note {
-  padding: 12px 14px;
-  border-radius: 16px;
-  border: 1px solid rgba(245, 200, 75, 0.2);
-  background: rgba(245, 200, 75, 0.08);
 }
 
 .main {
@@ -633,6 +655,50 @@ button.small {
   font-size: 0.85rem;
 }
 
+.discover-people-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.discover-people-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.discover-person-row {
+  border: 1px solid transparent;
+}
+
+.discover-person-row.is-active {
+  border-color: rgba(245, 200, 75, 0.4);
+  background: rgba(245, 200, 75, 0.1);
+}
+
+.discover-chat-panel {
+  grid-column: 1 / -1;
+  min-height: 560px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--bg-elev);
+}
+
+.discover-chat-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.discover-chat-panel .chat-window {
+  min-height: 500px;
+}
+
 .pending-list {
   display: flex;
   flex-direction: column;
@@ -712,7 +778,6 @@ button.small {
   font-size: 0.85rem;
 }
 
-.friends-panel,
 .alerts-panel,
 .discover-panel,
 .share-panel {
@@ -1070,4 +1135,220 @@ button.small {
   .share-buttons button {
     width: 100%;
   }
+}
+
+
+/* Mesh Guardian additions */
+.brand__status {
+  margin-top: 12px;
+}
+
+.unread-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  margin-left: 8px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-family: 'Space Grotesk', sans-serif;
+  vertical-align: middle;
+}
+
+.unread-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: #ef4444;
+  vertical-align: middle;
+  animation: unread-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes unread-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.85); }
+}
+
+
+/* Presence indicator (Phase 0.3 / 0.6) */
+.presence-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 8px;
+  vertical-align: middle;
+  border: 1.5px solid var(--bg-elev);
+}
+
+.presence-online {
+  background: #22c55e;
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.18);
+}
+
+.presence-away {
+  background: #f59e0b;
+}
+
+.presence-offline {
+  background: #6b7280;
+}
+
+.discover-person-meta {
+  display: inline-flex;
+  gap: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 0.78rem;
+}
+
+
+/* Block / Report buttons (Phase 0.7) */
+.discover-block-btn,
+.discover-report-btn {
+  font-size: 0.72rem;
+  padding: 4px 10px;
+  color: var(--muted);
+}
+
+.discover-block-btn:hover {
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.discover-report-btn:hover {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+
+/* Groups view (Phase 1.7 / 1.8) */
+.groups-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.groups-list-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.groups-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.groups-row {
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.groups-row:hover {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.groups-row.is-active {
+  border-color: rgba(245, 200, 75, 0.4);
+  background: rgba(245, 200, 75, 0.1);
+}
+
+
+/* Bottom-nav scroll fade (Phase 1.11) */
+@media (max-width: 900px) {
+  .bottom-nav {
+    mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      black 12px,
+      black calc(100% - 12px),
+      transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      black 12px,
+      black calc(100% - 12px),
+      transparent 100%
+    );
+  }
+}
+
+/* Mobile-friendly tweaks for new views (Phase 1.11) */
+@media (max-width: 700px) {
+  .group-chat-panel {
+    min-height: 60vh;
+  }
+  .group-chat-input textarea {
+    font-size: 16px; /* prevent iOS Safari zoom on focus */
+  }
+  .new-group-modal__card {
+    max-height: 88vh;
+  }
+  .new-group-modal__friend-list {
+    max-height: 220px;
+  }
+  .profile-account-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .connected-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .connected-row__main strong {
+    font-size: 1rem;
+  }
+}
+
+/* Prevent iOS zoom when focusing chat textareas */
+.chat-input textarea,
+.group-chat-input textarea {
+  font-size: 16px;
+}
+
+
+/* Outbox pending pill (Phase 2.7 / 2.8) */
+.brand__outbox-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.brand__outbox-pill:hover {
+  background: rgba(245, 158, 11, 0.18);
+}
+
+.brand__outbox-pill:disabled {
+  opacity: 0.6;
+  cursor: progress;
 }
