@@ -5,10 +5,14 @@ community alerts (water, food, medical, shelter, lost person).
 
 ## Features
 - Live MapLibre map with your location + nearby friends.
+- Unified **Connect Hub** with streamlined sub-navigation for Discovery, Connected friends, Groups, Sharing, Profile, and Mesh.
+- **Group Chats** for family, neighborhood, and emergency channels.
+- **Off-grid Mesh** integration (Meshtastic Bluetooth pairing) for communication without internet.
 - Friend requests, pending approvals, discovery toggle.
 - Proximity alerts + notification feed.
 - Emergency broadcast to people nearby (community alerts).
-- Supabase Auth (email/password + Google OAuth).
+- **PWA (Progressive Web App)** support for offline caching and native app installation.
+- Supabase Auth (email/password + Google OAuth) — unified into a single login flow.
 - WiFi scanner and connection tool (via local companion server).
 - MAC address spoofing and connected device discovery (for emergency/privacy use).
 
