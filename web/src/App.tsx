@@ -9,9 +9,11 @@ import EWSPanel from './components/EWS/EWSPanel';
 import AircraftOverlay from './components/EWS/AircraftOverlay';
 import NetworkStatusBar from './components/MeshGuardian/NetworkStatusBar';
 import IosInstallTutorial from './components/MeshGuardian/IosInstallTutorial';
+import TransportIndicator from './components/MeshGuardian/TransportIndicator';
 import { useUnreadCounts } from './lib/chat/useUnreadCounts';
 import { useBlockedUsers } from './lib/chat/useBlockedUsers';
 import { useOutboxSync } from './lib/chat/useOutboxSync';
+import { getTransportManager } from './lib/chat/TransportManager';
 import { getPresence, formatLastSeen, formatDistance as formatDistanceMeters } from './lib/chat/presence';
 import { listRooms } from './lib/chat/rooms';
 import type { ChatRoom } from './lib/chat/rooms';
@@ -292,6 +294,17 @@ export default function App() {
   } = useBlockedUsers(session?.user?.id ?? null);
 
   const outboxSync = useOutboxSync();
+
+  // Phase 6 — keep the TransportManager wired to the current user so it
+  // routes incoming Supabase Realtime + mesh messages through one channel.
+  useEffect(() => {
+    const manager = getTransportManager();
+    if (session?.user?.id) {
+      manager.attachUser(session.user.id);
+    } else {
+      manager.detach();
+    }
+  }, [session?.user?.id]);
 
   const visibleDiscoveredPeople = useMemo(
     () => discoveredPeople.filter((person) => !isBlocked(person.id)),
@@ -860,8 +873,8 @@ export default function App() {
     platform?: 'facebook' | 'instagram' | 'google' | 'apple'
   ) => {
     const shareUrl = 'https://imaginative-rolypoly-7fda4b.netlify.app/';
-    const shareText = 'Join me on iFoundYou - stay connected with friends in real-time!';
-    const shareTitle = 'iFoundYou';
+    const shareText = 'Join me on Dommedag - stay connected with friends in real-time!';
+    const shareTitle = 'Dommedag';
 
     if (platform === 'facebook') {
       window.open(
@@ -1428,7 +1441,7 @@ export default function App() {
                 <circle cx="32" cy="24" r="8" className="logo-mark-core" />
               </svg>
             </span>
-            <span className="logo-text">iFoundYou</span>
+            <span className="logo-text">Dommedag</span>
           </div>
           <p className="eyebrow">Live location network</p>
           <h1>Find your circle in real time.</h1>
@@ -1457,6 +1470,7 @@ export default function App() {
             >
               📡 Pair Meshtastic
             </button>
+            <TransportIndicator showToggle />
           </div>
         </div>
         <nav className="nav">
@@ -2112,7 +2126,7 @@ export default function App() {
 
               {isAuthed && (
                 <div className="card">
-                  <h3>Share iFoundYou</h3>
+                  <h3>Share Dommedag</h3>
                   <p className="muted">Send the app link to people you trust.</p>
                   <div className="share-buttons">
                     <button className="primary" onClick={() => shareApp('apple')}>

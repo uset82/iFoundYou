@@ -114,7 +114,7 @@ export default function ProfilePanel({ userId, email, onSignOut }: ProfilePanelP
     <section className="profile-panel">
       <div className="panel-header">
         <h2>Profile</h2>
-        <p className="muted">Set how friends see you in iFoundYou.</p>
+        <p className="muted">Set how friends see you in Dommedag.</p>
       </div>
 
       <div className="panel-grid">

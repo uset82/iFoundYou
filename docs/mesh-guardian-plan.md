@@ -4,9 +4,9 @@
 
 ## Overview
 
-Extend **iFoundYou's Discover view** so connected app users can chat with each other in real time, then evolve the chat layer into a **Mesh Guardian** survival messenger that works offline and falls back to Meshtastic LoRa mesh networks when the internet disappears.
+Extend **Dommedag's Discover view** so connected app users can chat with each other in real time, then evolve the chat layer into a **Mesh Guardian** survival messenger that works offline and falls back to Meshtastic LoRa mesh networks when the internet disappears.
 
-This plan reuses the existing iFoundYou stack rather than building a new Next.js project:
+This plan reuses the existing Dommedag stack rather than building a new Next.js project:
 
 - **Frontend:** Vite + React + TypeScript (existing)
 - **Backend:** Supabase (Postgres + Realtime + Auth) + Netlify Functions (existing)
@@ -20,7 +20,7 @@ This plan reuses the existing iFoundYou stack rather than building a new Next.js
 ## Architecture
 
 ```
-iFoundYou Web App
+Dommedag Web App
 │
 ├── Discover Chat (Phase 0–1)
 │   ├── Peer list with online/offline + distance
@@ -183,7 +183,7 @@ supabase/
 
 ## Success Criteria
 
-1. Two iFoundYou users can chat 1-on-1 in real time from the Discover view
+1. Two Dommedag users can chat 1-on-1 in real time from the Discover view
 2. Messages persist across page reloads via IndexedDB on every platform including iOS
 3. App switches to **Emergency Mode** automatically when offline
 4. Android user can pair a Meshtastic node via Bluetooth and send a SAFE message

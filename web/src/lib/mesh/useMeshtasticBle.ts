@@ -6,12 +6,15 @@ import type {
   MeshNodeInfo,
 } from './transports/MeshTransport';
 import { supportsWebBluetooth } from '../chat/platform';
+import { getTransportManager } from '../chat/TransportManager';
 
 /**
  * Singleton-ish wrapper around `BluetoothMeshTransport`.
  *
  * The transport instance is created lazily and shared so multiple components
  * (Mesh view, status pill, chat composer) can subscribe to the same state.
+ * It is also registered with the central `TransportManager` so the chat
+ * fail-over engine can route messages through the BLE link.
  */
 
 let sharedTransport: BluetoothMeshTransport | null = null;
@@ -19,6 +22,7 @@ let sharedTransport: BluetoothMeshTransport | null = null;
 function getOrCreateTransport(): BluetoothMeshTransport {
   if (!sharedTransport) {
     sharedTransport = new BluetoothMeshTransport();
+    getTransportManager().registerBle(sharedTransport);
   }
   return sharedTransport;
 }

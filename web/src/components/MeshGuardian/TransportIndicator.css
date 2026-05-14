@@ -1,0 +1,101 @@
+.transport-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.transport-indicator__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border: 1px solid var(--border);
+  background: var(--bg-soft);
+  color: var(--muted);
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.transport-indicator__icon {
+  font-size: 0.95rem;
+}
+
+.transport-indicator__label {
+  text-transform: uppercase;
+}
+
+.transport-indicator__pill.is-internet {
+  color: #22c55e;
+  border-color: rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.transport-indicator__pill.is-meshtastic-ble,
+.transport-indicator__pill.is-meshtastic-http {
+  color: #3ac6ff;
+  border-color: rgba(58, 198, 255, 0.35);
+  background: rgba(58, 198, 255, 0.08);
+}
+
+.transport-indicator__pill.is-multipeer {
+  color: #f5c84b;
+  border-color: rgba(245, 200, 75, 0.35);
+  background: rgba(245, 200, 75, 0.08);
+}
+
+.transport-indicator__pill.is-offline {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.transport-indicator__pill.is-emergency-forced {
+  outline: 1px dashed #f59e0b;
+  outline-offset: 1px;
+}
+
+.transport-indicator__badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #1a1a1a;
+  font-size: 0.6rem;
+  margin-left: 2px;
+}
+
+.transport-indicator__toggle {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.transport-indicator__toggle.is-on {
+  background: #f59e0b;
+  color: #1a1a1a;
+}
+
+.transport-indicator__retry {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.transport-indicator__retry:hover {
+  background: rgba(239, 68, 68, 0.2);
+}

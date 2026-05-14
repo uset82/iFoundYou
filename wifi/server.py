@@ -1,5 +1,5 @@
 """
-WiFi Companion Server for iFoundYou.
+WiFi Companion Server for Dommedag.
 Exposes WiFi scanning, MAC spoofing, and network user discovery via REST API.
 Run with: python server.py
 Requires admin/root for MAC spoofing operations.

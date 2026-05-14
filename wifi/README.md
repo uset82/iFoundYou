@@ -1,7 +1,7 @@
 # WiFi Companion Server
 
 Local Python server that provides WiFi scanning, MAC spoofing, and network
-user discovery for the iFoundYou web app.
+user discovery for the Dommedag web app.
 
 Inspired by [FreeWifi](https://github.com/kylemcdonald/FreeWifi) and
 [SpoofMAC](https://github.com/feross/SpoofMAC).

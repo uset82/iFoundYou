@@ -198,9 +198,9 @@ The sky is no longer the limit for iOS connectivity, but the pipe to get there i
 
 ---
 
-## Addendum: iFoundYou Emergency Mode Plan (Offline Messaging and Voice)
+## Addendum: Dommedag Emergency Mode Plan (Offline Messaging and Voice)
 
-This addendum turns the telecom analysis into a concrete offline feature plan for iFoundYou.
+This addendum turns the telecom analysis into a concrete offline feature plan for Dommedag.
 
 ### Transport stack
 

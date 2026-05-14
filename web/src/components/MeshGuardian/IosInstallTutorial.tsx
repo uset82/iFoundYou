@@ -37,11 +37,11 @@ export default function IosInstallTutorial() {
       <div className="ios-install__backdrop" onClick={dismiss} />
       <div className="ios-install__card">
         <h3 id="ios-install-title" className="ios-install__title">
-          Install iFoundYou on your iPhone
+          Install Dommedag on your iPhone
         </h3>
         <p className="ios-install__lead">
           For the best experience including push alerts, offline messaging, and faster loads,
-          add iFoundYou to your home screen.
+          add Dommedag to your home screen.
         </p>
         <ol className="ios-install__steps">
           <li>

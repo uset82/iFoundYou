@@ -1,4 +1,4 @@
-# iFoundYou MCP Server
+# Dommedag MCP Server
 
 This folder contains the MCP server used for the ChatGPT app integration.
 

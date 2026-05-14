@@ -200,7 +200,7 @@ For larger areas, pairing smartphones with **LoRa mesh radios** (Meshtastic) or 
 
 ---
 
-## iFoundYou Emergency Mode Update (Design Draft)
+## Dommedag Emergency Mode Update (Design Draft)
 
 This section translates the research above into a concrete update plan for the app in a real catastrophe scenario.
 

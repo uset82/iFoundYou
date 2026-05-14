@@ -120,9 +120,9 @@ In summary, **mesh networking via smartphones is an evolving field**, blending t
 
 ---
 
-## iFoundYou Emergency Mode Update (App Plan)
+## Dommedag Emergency Mode Update (App Plan)
 
-This addendum maps the research above to a concrete build plan for iFoundYou.
+This addendum maps the research above to a concrete build plan for Dommedag.
 
 - Phone-only mode (no infrastructure): iOS uses Multipeer Connectivity for Bluetooth + peer-to-peer Wi-Fi links; Android uses BLE fallback for cross-platform compatibility. (Source: https://developer.apple.com/documentation/multipeerconnectivity, accessed 2025-12-22)
 - Mesh routing: store-and-forward with TTL, small payloads, and deduplication.

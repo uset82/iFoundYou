@@ -5,7 +5,7 @@ import { InfoCard } from '../components/InfoCard';
 export const HomeScreen = () => {
   return (
     <ScreenLayout
-      title="IfoundYou Companion"
+      title="Dommedag Companion"
       subtitle="Offline mesh messaging and location sharing."
     >
       <InfoCard

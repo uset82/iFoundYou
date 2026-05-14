@@ -2,7 +2,7 @@
 
 > **Companion file:** [`mesh-guardian-plan.md`](./mesh-guardian-plan.md) — architecture, iOS three-tier strategy, file structure, and decisions. Read that once. Track work here.
 
-This checklist tracks the iFoundYou evolution into a survival messenger that works online first and can later bridge to Meshtastic LoRa, with a dedicated path so iPhone users get a real experience too.
+This checklist tracks the Dommedag evolution into a survival messenger that works online first and can later bridge to Meshtastic LoRa, with a dedicated path so iPhone users get a real experience too.
 
 **Project baseline:**
 - Web app: Vite + React + TypeScript
@@ -118,12 +118,12 @@ This checklist tracks the iFoundYou evolution into a survival messenger that wor
 
 ## Phase 5 — Meshtastic HTTP Mode (ESP32 over Wi-Fi)
 
-- [ ] **5.1** Create `HttpMeshTransport.ts` using `@meshtastic/transport-http`
-- [ ] **5.2** Add an "ESP32 Node IP" text input in the Mesh settings (e.g. `192.168.4.1`)
-- [ ] **5.3** Connect over `http://<ip>/api/v1/toradio` and `http://<ip>/api/v1/fromradio`
-- [ ] **5.4** Add a self-signed cert warning + setup instructions modal for users
+- [x] **5.1** Create `HttpMeshTransport.ts` using `@meshtastic/transport-http`
+- [x] **5.2** Add an "ESP32 Node IP" text input in the Mesh settings (e.g. `192.168.4.1`)
+- [x] **5.3** Connect over `http://<ip>/api/v1/toradio` and `http://<ip>/api/v1/fromradio`
+- [x] **5.4** Add a self-signed cert warning + setup instructions modal for users
 - [ ] **5.5** Test end-to-end on Android, iOS Safari, desktop
-- [ ] **5.6** Document fallback path: if Bluetooth unavailable → suggest HTTP mode
+- [x] **5.6** Document fallback path: if Bluetooth unavailable → suggest HTTP mode
 
 **Goal:** provide the best first web path for iPhone users through ESP32 node HTTP/Wi-Fi mode.
 
@@ -131,16 +131,16 @@ This checklist tracks the iFoundYou evolution into a survival messenger that wor
 
 ## Phase 6 — Transport Switching Engine
 
-- [ ] **6.1** Create `web/src/lib/chat/TransportManager.ts` with the unified `ChatTransport` interface
-- [ ] **6.2** Implement `InternetTransport` wrapping the Supabase Realtime chat from Phase 1
-- [ ] **6.3** Register `BluetoothMeshTransport` and `HttpMeshTransport` from Phase 4 & 5
-- [ ] **6.4** Add availability checks (heartbeat ping, BLE state, HTTP reachability)
-- [ ] **6.5** Add transport priority list: `internet > bluetooth > http > multipeer > none`
-- [ ] **6.6** Send normal messages via the highest-priority available transport
-- [ ] **6.7** Auto-fail-over: if internet drops mid-conversation, try the next transport
-- [ ] **6.8** Add a transport indicator in the chat header (🌐 Internet / 📡 Mesh-BT / 📡 Mesh-WiFi / 📲 Multipeer)
-- [ ] **6.9** Add a manual "Force Emergency Mode" toggle in settings
-- [ ] **6.10** Retry queue for failed messages with manual "Retry" button per failed message
+- [x] **6.1** Create `web/src/lib/chat/TransportManager.ts` with the unified `ChatTransport` interface
+- [x] **6.2** Implement `InternetTransport` wrapping the Supabase Realtime chat from Phase 1
+- [x] **6.3** Register `BluetoothMeshTransport` and `HttpMeshTransport` from Phase 4 & 5
+- [x] **6.4** Add availability checks (heartbeat ping, BLE state, HTTP reachability)
+- [x] **6.5** Add transport priority list: `internet > bluetooth > http > multipeer > none`
+- [x] **6.6** Send normal messages via the highest-priority available transport
+- [x] **6.7** Auto-fail-over: if internet drops mid-conversation, try the next transport
+- [x] **6.8** Add a transport indicator in the chat header (🌐 Internet / 📡 Mesh-BT / 📡 Mesh-WiFi / 📲 Multipeer)
+- [x] **6.9** Add a manual "Force Emergency Mode" toggle in settings
+- [x] **6.10** Retry queue for failed messages with manual "Retry" button per failed message
 
 **Goal:** one chat UI can choose internet, local mesh, or bridge mode.
 
@@ -234,7 +234,7 @@ The repo already has a React Native scaffold at `mobile/` with `react-native-ble
 - [ ] **12.8** Build with EAS (`eas build --platform ios --profile preview`) — config already exists in `mobile/eas.json`
 - [ ] **12.9** TestFlight distribution to internal testers
 - [ ] **12.10** App Store submission: screenshots, privacy nutrition label, App Privacy questionnaire, mesh/emergency-use disclaimer
-- [ ] **12.11** Add deep-link handler `ifoundyou://channel/<id>?key=<psk>` so QR-scanned channel invites open the app
+- [ ] **12.11** Add deep-link handler `Dommedag://channel/<id>?key=<psk>` so QR-scanned channel invites open the app
 
 **Goal:** ship a real iOS app that unlocks BLE LoRa pairing.
 
@@ -291,4 +291,4 @@ The repo already has a `MultipeerManager` stub in `web/src/lib/mesh/multipeer.ts
 
 ## Progress Snapshot
 
-Overall: **68 / ~163 tasks complete** (~42%). **Phase 0–4: complete.** Phases 0 (Discover Polish), 1 (Real-time Internet Chat), 2 (Offline-First IndexedDB), 3 (Emergency Message Protocol), 4 (Meshtastic Web Bluetooth) are all 100% done. Next: Phase 5 — Meshtastic HTTP Mode (ESP32).
+Overall: **83 / ~163 tasks complete** (~51%). **Phases 0–6: complete** (Phase 5 has one hardware-test task pending real ESP32 hardware). Next: Phase 7 — Bridge Mode.

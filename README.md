@@ -1,4 +1,4 @@
-# iFoundYou
+# Dommedag
 
 Private, opt-in location sharing for trusted circles with catastrophe-ready
 community alerts (water, food, medical, shelter, lost person).

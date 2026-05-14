@@ -21,6 +21,7 @@ import { loadDirectThread } from '../../lib/chat/messageStore';
 import { isEmergencyEncoded } from '../../lib/chat/emergency';
 import EmergencyBubble from '../MeshGuardian/EmergencyBubble';
 import EmergencyComposer from '../MeshGuardian/EmergencyComposer';
+import TransportIndicator from '../MeshGuardian/TransportIndicator';
 import { useNetworkStatus } from '../../lib/chat/useNetworkStatus';
 import type { ChatMessage, Peer } from '../../lib/mesh/types';
 import './ChatWindow.css';
@@ -375,6 +376,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
                             ? 'typing…'
                             : 'Online chat'}
                 </div>
+                {mode === 'web' && <TransportIndicator compact />}
                 {mode === 'web' && (
                     <button
                         type="button"
